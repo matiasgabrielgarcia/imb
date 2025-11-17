@@ -193,3 +193,35 @@ export const rentalsAPI = {
   getCurrentPrice: (id: number): Promise<{ current_price: number }> => 
     api.get(`/rentals/${id}/current-price`).then(r => r.data),
 };
+
+// Notifications API (connects to wapp service)
+const WAPP_API_URL = 'http://localhost:3005';
+
+export interface NotificationDto {
+  messageFrom: string;
+  message: string;
+  datetime: string;
+  messageType?: string;
+  messageId?: string;
+  category: 'BUYER' | 'SELLER' | 'TENANT' | 'LANDLORD' | 'UNCATEGORIZED';
+  isOld: boolean;
+}
+
+export interface NotificationsSummary {
+  BUYER: number;
+  SELLER: number;
+  TENANT: number;
+  LANDLORD: number;
+  UNCATEGORIZED: number;
+}
+
+export interface NotificationsResponse {
+  total: number;
+  summary: NotificationsSummary;
+  notifications: NotificationDto[];
+}
+
+export const notificationsAPI = {
+  getAll: (): Promise<NotificationsResponse> => 
+    fetch(`${WAPP_API_URL}/notifications`).then(r => r.json()),
+};

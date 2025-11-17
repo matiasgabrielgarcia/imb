@@ -18,6 +18,13 @@ A complete property management system with React frontend and Node.js backend, f
 - ✅ **Form Validation** - Comprehensive validation with real-time feedback
 - 📊 **Dashboard** - Overview of all properties and activities
 
+### 🆕 Notification System (WhatsApp Integration)
+- 📱 **WhatsApp Integration** - Receive messages from WhatsApp Business API
+- 🤖 **AI Categorization** - Automatically categorize clients (Buyer, Seller, Tenant, Landlord)
+- 🎨 **Color-Coded Alerts** - Visual indicators for message age (recent vs. old)
+- 📊 **Summary Dashboard** - Quick overview of client inquiries by category
+- 🔔 **Real-time Notifications** - Stay on top of client communications
+
 ### User Experience
 - 🎨 **Modern UI** with Material-UI components
 - 📱 **Responsive Design** - Works on all devices
@@ -32,6 +39,7 @@ imb/
 │   ├── src/
 │   │   ├── components/      # Reusable UI components
 │   │   ├── views/          # Main page components
+│   │   │   └── NotificationsView.tsx  # 🆕 Notifications page
 │   │   ├── hooks/          # Custom React hooks
 │   │   ├── services/       # API services
 │   │   └── contexts/       # React contexts
@@ -43,6 +51,11 @@ imb/
 │   │   ├── middleware/     # Express middleware
 │   │   ├── services/       # Business logic
 │   │   └── database/       # Database schema & connection
+│   └── package.json
+├── wapp/                     # 🆕 WhatsApp webhook service
+│   ├── server.js           # Node.js server with AI categorization
+│   ├── messages/           # Stored messages (JSON files)
+│   └── package.json
 │   └── package.json
 ├── scripts/                 # Utility scripts
 └── README.md
@@ -140,6 +153,41 @@ REACT_APP_API_URL=http://localhost:3001/api
 ```bash
 npm start
 ```
+
+### 4. 🆕 WhatsApp Notification Service Setup
+
+1. Navigate to the wapp directory:
+```bash
+cd wapp
+```
+
+2. Install dependencies:
+```bash
+npm install
+```
+
+3. Start the service:
+```bash
+npm start
+```
+
+The wapp service will run on **http://localhost:3005**
+
+4. Test the service:
+```bash
+curl http://localhost:3005/
+```
+
+**Quick Test:** Send a test notification to see it in action:
+```bash
+curl -X POST http://localhost:3005/webhook/test \
+  -H "Content-Type: application/json" \
+  -d '{"messageFrom": "+1234567890", "message": "Hola, quiero comprar una casa"}'
+```
+
+Then visit **http://localhost:3000/notificaciones** to see the categorized message!
+
+📖 **Full Documentation:** See [QUICK_START_NOTIFICATIONS.md](QUICK_START_NOTIFICATIONS.md) for detailed instructions.
 
 ## Usage
 

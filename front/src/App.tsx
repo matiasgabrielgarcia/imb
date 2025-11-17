@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoginForm from './components/LoginForm';
 import DashboardView from './views/DashboardView';
 import PropertiesView from './views/PropertiesView';
+import NotificationsView from './views/NotificationsView';
 import PropertyDetail from './components/PropertyDetail';
 import SaleDetail from './components/SaleDetail';
 import RentalDetail from './components/RentalDetail';
@@ -123,6 +124,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <RentalDetail />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/notificaciones" 
+                element={
+                  <ProtectedRoute>
+                    <NotificationsView />
                   </ProtectedRoute>
                 } 
               />
