@@ -1,0 +1,13 @@
+{
+  "name": "imb-monorepo",
+  "version": "1.0.0",
+  "description": "Run all IMB services",
+  "scripts": {
+    "dev": "concurrently --names \"BACK,FRONT,WAPP\" --prefix-colors \"cyan,yellow,magenta\" \"cd back && npm run dev\" \"cd front && npm run dev\" \"cd wapp && npm run dev\"",
+    "dev:kill-on-error": "concurrently --kill-others --names \"BACK,FRONT,WAPP\" --prefix-colors \"cyan,yellow,magenta\" \"cd back && npm run dev\" \"cd front && npm run dev\" \"cd wapp && npm run dev\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
+

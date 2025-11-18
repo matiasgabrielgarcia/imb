@@ -74,7 +74,7 @@ app.get('/webhook', (req, res) => {
 });
 
 // Webhook endpoint to receive messages (POST)
-app.post('/webhook', (req, res) => {
+app.post('/webhook', async (req, res) => {
   const body = req.body;
 
   console.log('Incoming webhook:', JSON.stringify(body, null, 2));
@@ -83,17 +83,17 @@ app.post('/webhook', (req, res) => {
     // Check if it's a WhatsApp Business message
     if (body.object === 'whatsapp_business_account') {
       if (body.entry && body.entry.length > 0) {
-        body.entry.forEach(entry => {
+        for (const entry of body.entry) {
           if (entry.changes && entry.changes.length > 0) {
-            entry.changes.forEach(change => {
+            for (const change of entry.changes) {
               if (change.value.messages && change.value.messages.length > 0) {
-                change.value.messages.forEach(message => {
-                  processMessage(message, change.value);
-                });
+                for (const message of change.value.messages) {
+                  await processMessage(message, change.value);
+                }
               }
-            });
+            }
           }
-        });
+        }
       }
       
       res.status(200).send('EVENT_RECEIVED');
@@ -107,7 +107,7 @@ app.post('/webhook', (req, res) => {
 });
 
 // Test endpoint for manual testing with Postman
-app.post('/webhook/test', (req, res) => {
+app.post('/webhook/test', async (req, res) => {
   const { messageFrom, message } = req.body;
 
   if (!messageFrom || !message) {
@@ -125,7 +125,7 @@ app.post('/webhook/test', (req, res) => {
       category: categorizeMessage(message)
     };
 
-    saveMessage(messageData);
+    await saveMessage(messageData);
 
     res.status(200).json({
       success: true,
@@ -142,42 +142,53 @@ app.post('/webhook/test', (req, res) => {
 });
 
 // Get all saved messages
-app.get('/messages', (req, res) => {
+app.get('/messages', async (req, res) => {
   try {
-    const files = fs.readdirSync(MESSAGES_DIR)
-      .filter(file => file.endsWith('.json'))
-      .sort()
-      .reverse(); // Most recent first
-
-    const messages = files.map(file => {
-      const content = fs.readFileSync(path.join(MESSAGES_DIR, file), 'utf8');
-      return JSON.parse(content);
-    });
+    const result = await pool.query(
+      `SELECT 
+        id,
+        message_from as "messageFrom",
+        message,
+        datetime,
+        message_type as "messageType",
+        message_id as "messageId",
+        category,
+        created_at as "createdAt"
+      FROM whatsapp_messages
+      ORDER BY datetime DESC`
+    );
 
     res.status(200).json({
-      total: messages.length,
-      messages
+      total: result.rows.length,
+      messages: result.rows
     });
   } catch (error) {
     console.error('Error reading messages:', error);
     res.status(500).json({
-      error: 'Failed to read messages'
+      error: 'Failed to read messages',
+      details: error.message
     });
   }
 });
 
 // Get notifications summary (categorized messages)
-app.get('/notifications', (req, res) => {
+app.get('/notifications', async (req, res) => {
   try {
-    const files = fs.readdirSync(MESSAGES_DIR)
-      .filter(file => file.endsWith('.json'))
-      .sort()
-      .reverse(); // Most recent first
+    const result = await pool.query(
+      `SELECT 
+        id,
+        message_from as "messageFrom",
+        message,
+        datetime,
+        message_type as "messageType",
+        message_id as "messageId",
+        category,
+        created_at as "createdAt"
+      FROM whatsapp_messages
+      ORDER BY datetime DESC`
+    );
 
-    const messages = files.map(file => {
-      const content = fs.readFileSync(path.join(MESSAGES_DIR, file), 'utf8');
-      return JSON.parse(content);
-    });
+    const messages = result.rows;
 
     // Categorize and filter messages
     const now = new Date();
@@ -212,13 +223,14 @@ app.get('/notifications', (req, res) => {
   } catch (error) {
     console.error('Error reading notifications:', error);
     res.status(500).json({
-      error: 'Failed to read notifications'
+      error: 'Failed to read notifications',
+      details: error.message
     });
   }
 });
 
 // Process WhatsApp message
-function processMessage(message, value) {
+async function processMessage(message, value) {
   const messageText = extractMessageText(message);
   const messageData = {
     messageFrom: message.from,
@@ -230,7 +242,7 @@ function processMessage(message, value) {
   };
 
   console.log('Processing message:', messageData);
-  saveMessage(messageData);
+  await saveMessage(messageData);
 }
 
 // Extract text from different message types
@@ -296,14 +308,33 @@ function categorizeMessage(messageText) {
   return 'UNCATEGORIZED';
 }
 
-// Save message to filesystem
-function saveMessage(messageData) {
-  const timestamp = Date.now();
-  const filename = `message_${timestamp}.json`;
-  const filepath = path.join(MESSAGES_DIR, filename);
-
-  fs.writeFileSync(filepath, JSON.stringify(messageData, null, 2), 'utf8');
-  console.log(`Message saved to: ${filepath}`);
+// Save message to database
+async function saveMessage(messageData) {
+  try {
+    await pool.query(
+      `INSERT INTO whatsapp_messages (
+        message_from, message, datetime, message_type, message_id, category
+      ) VALUES ($1, $2, $3, $4, $5, $6)
+      ON CONFLICT (message_id) DO NOTHING`,
+      [
+        messageData.messageFrom,
+        messageData.message,
+        messageData.datetime,
+        messageData.messageType || 'text',
+        messageData.messageId || null,
+        messageData.category || 'UNCATEGORIZED'
+      ]
+    );
+    console.log(`Message saved to database from: ${messageData.messageFrom}`);
+  } catch (error) {
+    console.error('Error saving message to database:', error);
+    // Fallback to filesystem if database fails
+    const timestamp = Date.now();
+    const filename = `message_${timestamp}.json`;
+    const filepath = path.join(MESSAGES_DIR, filename);
+    fs.writeFileSync(filepath, JSON.stringify(messageData, null, 2), 'utf8');
+    console.log(`Message saved to filesystem (fallback): ${filepath}`);
+  }
 }
 
 // ============================================

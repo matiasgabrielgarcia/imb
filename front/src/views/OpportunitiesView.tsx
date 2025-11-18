@@ -142,6 +142,25 @@ const OpportunitiesView: React.FC = () => {
     return `Hace ${diffMonths} mes${diffMonths > 1 ? 'es' : ''}`;
   };
 
+  const formatFullDateTime = (dateString: string): string => {
+    const date = new Date(dateString);
+    return date.toLocaleString('es-AR', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  };
+
+  const openWhatsApp = (phoneNumber: string) => {
+    // Clean phone number (remove spaces, dashes, parentheses, plus signs)
+    const cleanPhone = phoneNumber.replace(/[\s\-\(\)\+]/g, '');
+    // Open WhatsApp Web in a new tab
+    window.open(`https://web.whatsapp.com/send?phone=${cleanPhone}`, '_blank');
+  };
+
   const OpportunityCard: React.FC<{ opportunity: OpportunityDto; index: number }> = ({ 
     opportunity, 
     index 
@@ -167,13 +186,15 @@ const OpportunitiesView: React.FC = () => {
             <Stack spacing={1.5}>
               {/* Time ago */}
               <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Chip
-                  icon={<TimeIcon />}
-                  label={formatTimeAgo(opportunity.received_at)}
-                  size="small"
-                  color="primary"
-                  variant="outlined"
-                />
+                <Tooltip title={formatFullDateTime(opportunity.received_at)} arrow>
+                  <Chip
+                    icon={<TimeIcon />}
+                    label={formatTimeAgo(opportunity.received_at)}
+                    size="small"
+                    color="primary"
+                    variant="outlined"
+                  />
+                </Tooltip>
                 <Chip
                   label={opportunity.channel}
                   size="small"
@@ -202,9 +223,33 @@ const OpportunitiesView: React.FC = () => {
 
               {/* Phone */}
               {opportunity.phone && (
-                <Box display="flex" alignItems="center" gap={1}>
-                  <PhoneIcon fontSize="small" color="action" />
-                  <Typography variant="body2" color="text.secondary">
+                <Box 
+                  display="flex" 
+                  alignItems="center" 
+                  gap={1}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWhatsApp(opportunity.phone!);
+                  }}
+                  sx={{
+                    cursor: 'pointer',
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    transition: 'background-color 0.2s',
+                    '&:hover': {
+                      backgroundColor: 'rgba(37, 211, 102, 0.1)',
+                    },
+                  }}
+                >
+                  <PhoneIcon fontSize="small" color="success" />
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      color: '#25d366',
+                      fontWeight: 500,
+                      textDecoration: 'underline',
+                    }}
+                  >
                     {opportunity.phone}
                   </Typography>
                 </Box>
@@ -212,9 +257,33 @@ const OpportunitiesView: React.FC = () => {
 
               {/* Mobile */}
               {opportunity.mobile && (
-                <Box display="flex" alignItems="center" gap={1}>
-                  <MobileIcon fontSize="small" color="action" />
-                  <Typography variant="body2" color="text.secondary">
+                <Box 
+                  display="flex" 
+                  alignItems="center" 
+                  gap={1}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWhatsApp(opportunity.mobile!);
+                  }}
+                  sx={{
+                    cursor: 'pointer',
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    transition: 'background-color 0.2s',
+                    '&:hover': {
+                      backgroundColor: 'rgba(37, 211, 102, 0.1)',
+                    },
+                  }}
+                >
+                  <MobileIcon fontSize="small" color="success" />
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      color: '#25d366',
+                      fontWeight: 500,
+                      textDecoration: 'underline',
+                    }}
+                  >
                     {opportunity.mobile}
                   </Typography>
                 </Box>

@@ -46,6 +46,13 @@ const NotificationsView: React.FC = () => {
     }
   };
 
+  const openWhatsApp = (phoneNumber: string) => {
+    // Clean phone number (remove spaces, dashes, parentheses, plus signs)
+    const cleanPhone = phoneNumber.replace(/[\s\-\(\)\+]/g, '');
+    // Open WhatsApp Web in a new tab
+    window.open(`https://web.whatsapp.com/send?phone=${cleanPhone}`, '_blank');
+  };
+
   const getCategoryIcon = (category: string) => {
     switch (category) {
       case 'BUYER':
@@ -200,10 +207,39 @@ const NotificationsView: React.FC = () => {
                               <Typography variant="subtitle2" color="textSecondary">
                                 De:
                               </Typography>
-                              <Typography variant="h6" component="div">
-                                <PhoneIcon sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'middle' }} />
-                                {notification.messageFrom}
-                              </Typography>
+                              <Box
+                                onClick={() => openWhatsApp(notification.messageFrom)}
+                                sx={{
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  padding: '4px 8px',
+                                  borderRadius: '4px',
+                                  transition: 'background-color 0.2s',
+                                  '&:hover': {
+                                    backgroundColor: 'rgba(37, 211, 102, 0.1)',
+                                  },
+                                }}
+                              >
+                                <PhoneIcon 
+                                  sx={{ 
+                                    fontSize: 18, 
+                                    mr: 0.5, 
+                                    color: '#25d366'
+                                  }} 
+                                />
+                                <Typography 
+                                  variant="h6" 
+                                  component="div"
+                                  sx={{
+                                    color: '#25d366',
+                                    fontWeight: 500,
+                                    textDecoration: 'underline',
+                                  }}
+                                >
+                                  {notification.messageFrom}
+                                </Typography>
+                              </Box>
                             </Box>
                             <Chip
                               label={notification.isOld ? 'Más de 1 mes' : 'Reciente'}

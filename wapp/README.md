@@ -1,11 +1,11 @@
 # WhatsApp Business Webhook Service
 
-A Node.js backend service to receive messages from WhatsApp Business API and save them to the filesystem as JSON files.
+A Node.js backend service to receive messages from WhatsApp Business API and save them to a PostgreSQL database.
 
 ## Features
 
 - ✅ Receive WhatsApp Business messages via webhook
-- ✅ Save messages as JSON files with `messageFrom`, `message`, `datetime`, and `category`
+- ✅ **Save messages to PostgreSQL database** (with filesystem fallback)
 - ✅ **Automatic message categorization** (BUYER, SELLER, TENANT, LANDLORD)
 - ✅ Support for different message types (text, image, video, audio, etc.)
 - ✅ Test endpoint for manual testing with Postman
@@ -13,6 +13,7 @@ A Node.js backend service to receive messages from WhatsApp Business API and sav
 - ✅ **Notifications endpoint** with categorized summaries and age indicators
 - ✅ WhatsApp webhook verification
 - ✅ CORS enabled for frontend integration
+- ✅ **Database migration tool** to import existing JSON files
 
 ## Quick Start
 
@@ -22,7 +23,35 @@ A Node.js backend service to receive messages from WhatsApp Business API and sav
 npm install
 ```
 
-### 2. Start the Server
+### 2. Configure Database
+
+Create a `.env` file in the `wapp` directory:
+
+```env
+# Database Configuration
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=2fa_auth
+DB_USER=postgres
+DB_PASSWORD=postgres
+
+# Server Configuration
+PORT=3005
+VERIFY_TOKEN=my_secure_verify_token_123
+MESSAGES_DIR=./messages
+```
+
+### 3. Run Database Migration
+
+**Important:** If you have existing JSON message files, run the migration to import them:
+
+```bash
+node run-messages-migration.js
+```
+
+See [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md) for detailed instructions.
+
+### 4. Start the Server
 
 ```bash
 npm start
@@ -34,14 +63,6 @@ npm run dev
 ```
 
 The server will start on `http://localhost:3005`
-
-### 3. Configuration (Optional)
-
-You can set these environment variables:
-
-- `PORT` - Server port (default: 3000)
-- `VERIFY_TOKEN` - Token for WhatsApp webhook verification (default: my_secure_verify_token_123)
-- `MESSAGES_DIR` - Directory to save messages (default: ./messages)
 
 ## API Endpoints
 
@@ -225,21 +246,38 @@ GET /messages
 
 ## Message Storage Format
 
-Messages are saved in the `./messages` directory as individual JSON files:
+Messages are saved in the PostgreSQL database in the `whatsapp_messages` table:
 
-**Filename:** `message_1699632896789.json` (timestamp-based)
+**Database Schema:**
+```sql
+CREATE TABLE whatsapp_messages (
+  id SERIAL PRIMARY KEY,
+  message_from VARCHAR(50) NOT NULL,
+  message TEXT NOT NULL,
+  datetime TIMESTAMP NOT NULL,
+  message_type VARCHAR(50) DEFAULT 'text',
+  message_id VARCHAR(255) UNIQUE,
+  category VARCHAR(50) DEFAULT 'UNCATEGORIZED',
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+```
 
-**Content:**
+**Example Record:**
 ```json
 {
+  "id": 1,
   "messageFrom": "1234567890",
   "message": "Hello from WhatsApp!",
   "datetime": "2025-11-10T12:34:56.789Z",
   "messageType": "text",
   "messageId": "wamid.XXX",
-  "category": "BUYER"
+  "category": "BUYER",
+  "createdAt": "2025-11-10T12:34:56.789Z"
 }
 ```
+
+**Fallback:** If database save fails, messages are automatically saved as JSON files in the `./messages` directory.
 
 ## Message Categorization
 
