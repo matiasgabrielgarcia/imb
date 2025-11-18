@@ -10,10 +10,14 @@ start "Frontend" cmd /k "cd /d %~dp0front && npm run dev"
 REM Start WhatsApp service in new window
 start "WhatsApp Service" cmd /k "cd /d %~dp0wapp && npm run dev"
 
+REM Start Public Site in new window
+start "Public Site" cmd /k "cd /d %~dp0public-site && npm run dev"
+
 echo.
 echo All services started in separate windows!
-echo Backend: http://localhost:3000
-echo Frontend: http://localhost:5173
+echo Backend: http://localhost:3001
+echo Frontend (Backoffice): http://localhost:5173
+echo Public Site: http://localhost:5174
 echo WhatsApp: http://localhost:3002
 pause
 

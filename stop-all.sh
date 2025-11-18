@@ -30,11 +30,11 @@ else
 fi
 
 # Clean up log files
-if [ -f back.log ] || [ -f front.log ] || [ -f wapp.log ]; then
+if [ -f back.log ] || [ -f front.log ] || [ -f wapp.log ] || [ -f public-site.log ]; then
     read -p "Delete log files? (y/n) " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        rm -f back.log front.log wapp.log
+        rm -f back.log front.log wapp.log public-site.log
         echo -e "${GREEN}Log files deleted${NC}"
     fi
 fi

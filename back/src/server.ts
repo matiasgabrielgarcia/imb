@@ -9,6 +9,8 @@ import propertiesRoutes from './routes/properties';
 import salesRoutes from './routes/sales';
 import rentalsRoutes from './routes/rentals';
 import imageRoutes from './routes/images';
+import opportunitiesRoutes from './routes/opportunities';
+import publicRoutes from './routes/public';
 
 // Load environment variables
 dotenv.config();
@@ -20,8 +22,8 @@ const PORT = process.env.PORT || 3001;
 app.use(helmet());
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
-    ? ['https://your-frontend-domain.com'] 
-    : ['http://localhost:3000'],
+    ? ['https://your-frontend-domain.com', 'https://your-public-site-domain.com'] 
+    : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174'],
   credentials: true
 }));
 app.use(morgan('combined'));
@@ -37,6 +39,8 @@ app.use('/api/properties', propertiesRoutes);
 app.use('/api/properties', imageRoutes);
 app.use('/api/sales', salesRoutes);
 app.use('/api/rentals', rentalsRoutes);
+app.use('/api/opportunities', opportunitiesRoutes);
+app.use('/api/public', publicRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
