@@ -21,6 +21,7 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import PersonIcon from '@mui/icons-material/Person';
 import HouseIcon from '@mui/icons-material/House';
 import NotificationsIcon from '@mui/icons-material/Notifications';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import Breadcrumb from './Breadcrumb';
@@ -50,6 +51,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
     { text: 'Propiedades', icon: <HouseIcon />, path: '/propiedades' },
     { text: 'Notificaciones', icon: <NotificationsIcon />, path: '/notificaciones' },
+    { text: 'Oportunidades', icon: <TrendingUpIcon />, path: '/oportunidades' },
   ];
 
   const drawer = (isCollapsed: boolean) => (

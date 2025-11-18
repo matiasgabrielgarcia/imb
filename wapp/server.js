@@ -1,6 +1,10 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const { Pool } = require('pg');
+
+// Load environment variables from .env file
+require('dotenv').config();
 
 const app = express();
 
@@ -8,6 +12,15 @@ const app = express();
 const PORT = process.env.PORT || 3005;
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN || 'my_secure_verify_token_123';
 const MESSAGES_DIR = process.env.MESSAGES_DIR || './messages';
+
+// Database configuration
+const pool = new Pool({
+  host: process.env.DB_HOST || 'localhost',
+  port: process.env.DB_PORT || 5432,
+  database: process.env.DB_NAME || '2fa_auth',
+  user: process.env.DB_USER || 'postgres',
+  password: process.env.DB_PASSWORD || 'postgres',
+});
 
 // Middleware
 app.use(express.json());
@@ -292,6 +305,345 @@ function saveMessage(messageData) {
   fs.writeFileSync(filepath, JSON.stringify(messageData, null, 2), 'utf8');
   console.log(`Message saved to: ${filepath}`);
 }
+
+// ============================================
+// OPPORTUNITIES API ENDPOINTS
+// ============================================
+
+// Get all opportunities
+app.get('/opportunities', async (req, res) => {
+  try {
+    const { type, status } = req.query;
+    
+    let query = 'SELECT * FROM opportunities WHERE 1=1';
+    const params = [];
+    let paramIndex = 1;
+
+    if (type) {
+      query += ` AND opportunity_type = $${paramIndex}`;
+      params.push(type);
+      paramIndex++;
+    }
+
+    if (status) {
+      query += ` AND status = $${paramIndex}`;
+      params.push(status);
+      paramIndex++;
+    }
+
+    query += ' ORDER BY received_at DESC';
+
+    const result = await pool.query(query, params);
+
+    // Group by status for Kanban board
+    const grouped = {
+      pending_contact: [],
+      waiting_response: [],
+      evolved: [],
+      take_action: [],
+      frozen: [],
+      appraisals: [],
+      rental_agency: [],
+      rental_outsourced: []
+    };
+
+    result.rows.forEach(opp => {
+      if (grouped[opp.status]) {
+        grouped[opp.status].push(opp);
+      }
+    });
+
+    res.json({
+      total: result.rows.length,
+      opportunities: result.rows,
+      grouped
+    });
+  } catch (error) {
+    console.error('Error fetching opportunities:', error);
+    res.status(500).json({ error: 'Failed to fetch opportunities' });
+  }
+});
+
+// Get a single opportunity
+app.get('/opportunities/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      'SELECT * FROM opportunities WHERE id = $1',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Opportunity not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error fetching opportunity:', error);
+    res.status(500).json({ error: 'Failed to fetch opportunity' });
+  }
+});
+
+// Create a new opportunity
+app.post('/opportunities', async (req, res) => {
+  try {
+    const {
+      channel = 'public_website',
+      property_id,
+      email,
+      phone,
+      mobile,
+      contact_name,
+      messages = [],
+      status = 'pending_contact',
+      opportunity_type,
+      metadata = {}
+    } = req.body;
+
+    // Validate required fields
+    if (!opportunity_type || !['sale', 'rental'].includes(opportunity_type)) {
+      return res.status(400).json({ 
+        error: 'opportunity_type is required and must be either "sale" or "rental"' 
+      });
+    }
+
+    // At least one contact method is required
+    if (!email && !phone && !mobile) {
+      return res.status(400).json({
+        error: 'At least one contact method (email, phone, or mobile) is required'
+      });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO opportunities (
+        channel, property_id, email, phone, mobile, contact_name,
+        messages, status, opportunity_type, metadata, received_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7::text[], $8, $9, $10, NOW())
+      RETURNING *`,
+      [
+        channel,
+        property_id || null,
+        email || null,
+        phone || null,
+        mobile || null,
+        contact_name || null,
+        messages,
+        status,
+        opportunity_type,
+        JSON.stringify(metadata)
+      ]
+    );
+
+    console.log('Opportunity created:', result.rows[0]);
+
+    res.status(201).json({
+      success: true,
+      opportunity: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error creating opportunity:', error);
+    res.status(500).json({ error: 'Failed to create opportunity' });
+  }
+});
+
+// Update opportunity status (for drag & drop)
+app.put('/opportunities/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const validStatuses = [
+      'pending_contact',
+      'waiting_response',
+      'evolved',
+      'take_action',
+      'frozen',
+      'appraisals',
+      'rental_agency',
+      'rental_outsourced'
+    ];
+
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ 
+        error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` 
+      });
+    }
+
+    const result = await pool.query(
+      'UPDATE opportunities SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+      [status, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Opportunity not found' });
+    }
+
+    res.json({
+      success: true,
+      opportunity: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating opportunity status:', error);
+    res.status(500).json({ error: 'Failed to update opportunity status' });
+  }
+});
+
+// Update opportunity (full update)
+app.put('/opportunities/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      email,
+      phone,
+      mobile,
+      contact_name,
+      messages,
+      status,
+      property_id,
+      metadata
+    } = req.body;
+
+    const result = await pool.query(
+      `UPDATE opportunities 
+       SET email = COALESCE($1, email),
+           phone = COALESCE($2, phone),
+           mobile = COALESCE($3, mobile),
+           contact_name = COALESCE($4, contact_name),
+           messages = COALESCE($5, messages),
+           status = COALESCE($6, status),
+           property_id = COALESCE($7, property_id),
+           metadata = COALESCE($8, metadata),
+           updated_at = NOW()
+       WHERE id = $9
+       RETURNING *`,
+      [
+        email,
+        phone,
+        mobile,
+        contact_name,
+        messages,
+        status,
+        property_id,
+        metadata ? JSON.stringify(metadata) : null,
+        id
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Opportunity not found' });
+    }
+
+    res.json({
+      success: true,
+      opportunity: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating opportunity:', error);
+    res.status(500).json({ error: 'Failed to update opportunity' });
+  }
+});
+
+// Add a message to an opportunity
+app.post('/opportunities/:id/messages', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { message } = req.body;
+
+    if (!message) {
+      return res.status(400).json({ error: 'Message is required' });
+    }
+
+    const result = await pool.query(
+      `UPDATE opportunities 
+       SET messages = array_append(messages, $1),
+           updated_at = NOW()
+       WHERE id = $2
+       RETURNING *`,
+      [message, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Opportunity not found' });
+    }
+
+    res.json({
+      success: true,
+      opportunity: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error adding message:', error);
+    res.status(500).json({ error: 'Failed to add message' });
+  }
+});
+
+// Delete an opportunity
+app.delete('/opportunities/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(
+      'DELETE FROM opportunities WHERE id = $1 RETURNING *',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Opportunity not found' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Opportunity deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting opportunity:', error);
+    res.status(500).json({ error: 'Failed to delete opportunity' });
+  }
+});
+
+// Test endpoint to simulate opportunity from public website
+app.post('/opportunities/test/from-website', async (req, res) => {
+  try {
+    const {
+      property_id,
+      email,
+      phone,
+      mobile,
+      contact_name,
+      opportunity_type = 'sale',
+      initial_message
+    } = req.body;
+
+    const messages = initial_message ? [initial_message] : [];
+
+    const result = await pool.query(
+      `INSERT INTO opportunities (
+        channel, property_id, email, phone, mobile, contact_name,
+        messages, status, opportunity_type, received_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7::text[], $8, $9, NOW())
+      RETURNING *`,
+      [
+        'public_website',
+        property_id || null,
+        email || null,
+        phone || null,
+        mobile || null,
+        contact_name || null,
+        messages,
+        'pending_contact',
+        opportunity_type
+      ]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Test opportunity created from website',
+      opportunity: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error creating test opportunity:', error);
+    res.status(500).json({ error: 'Failed to create test opportunity' });
+  }
+});
 
 // Start server
 app.listen(PORT, () => {

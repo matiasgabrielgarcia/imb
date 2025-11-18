@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Integración - Sitio Público con Sistema de Oportunidades</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .property-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .contact-form {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #1976d2;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #1565c0;
+        }
+        .success-message {
+            background-color: #4caf50;
+            color: white;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+            display: none;
+        }
+        .error-message {
+            background-color: #f44336;
+            color: white;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+            display: none;
+        }
+        .property-info {
+            background-color: #e3f2fd;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Ejemplo de Integración - Sitio Público</h1>
+    
+    <div class="property-card">
+        <h2>Propiedad: Casa en Palermo</h2>
+        <p><strong>Dirección:</strong> Av. Santa Fe 1234</p>
+        <p><strong>Superficie:</strong> 120 m²</p>
+        <p><strong>Precio:</strong> USD 250,000</p>
+        <p><strong>ID:</strong> <span id="property-id">123</span></p>
+    </div>
+
+    <div class="contact-form">
+        <h2>¿Te interesa esta propiedad?</h2>
+        <p>Déjanos tus datos y te contactaremos a la brevedad.</p>
+
+        <form id="interestForm">
+            <div class="form-group">
+                <label for="contact_name">Nombre Completo *</label>
+                <input type="text" id="contact_name" name="contact_name" required>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email *</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+
+            <div class="form-group">
+                <label for="phone">Teléfono</label>
+                <input type="tel" id="phone" name="phone" placeholder="Ej: 011-4567-8910">
+            </div>
+
+            <div class="form-group">
+                <label for="mobile">Celular *</label>
+                <input type="tel" id="mobile" name="mobile" required placeholder="Ej: +54 9 11 1234-5678">
+            </div>
+
+            <div class="form-group">
+                <label for="opportunity_type">Tipo de Interés *</label>
+                <select id="opportunity_type" name="opportunity_type" required>
+                    <option value="">Seleccione...</option>
+                    <option value="sale">Compra</option>
+                    <option value="rental">Alquiler</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="message">Mensaje (opcional)</label>
+                <textarea id="message" name="message" rows="4" placeholder="Escribe tu consulta aquí..."></textarea>
+            </div>
+
+            <button type="submit">Enviar Consulta</button>
+        </form>
+
+        <div class="success-message" id="successMessage">
+            ¡Gracias por tu interés! Hemos recibido tu consulta y te contactaremos pronto.
+        </div>
+
+        <div class="error-message" id="errorMessage">
+            Hubo un error al enviar tu consulta. Por favor, intenta nuevamente.
+        </div>
+    </div>
+
+    <script>
+        // Configuración de la API
+        const API_URL = 'http://localhost:3005';
+        
+        // Función para obtener parámetros UTM de la URL
+        function getUtmParams() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return {
+                utm_source: urlParams.get('utm_source'),
+                utm_medium: urlParams.get('utm_medium'),
+                utm_campaign: urlParams.get('utm_campaign'),
+                utm_term: urlParams.get('utm_term'),
+                utm_content: urlParams.get('utm_content'),
+            };
+        }
+
+        // Handler del formulario
+        document.getElementById('interestForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const successMessage = document.getElementById('successMessage');
+            const errorMessage = document.getElementById('errorMessage');
+            
+            // Ocultar mensajes previos
+            successMessage.style.display = 'none';
+            errorMessage.style.display = 'none';
+            
+            // Obtener datos del formulario
+            const formData = {
+                property_id: parseInt(document.getElementById('property-id').textContent),
+                contact_name: document.getElementById('contact_name').value,
+                email: document.getElementById('email').value,
+                phone: document.getElementById('phone').value || null,
+                mobile: document.getElementById('mobile').value,
+                opportunity_type: document.getElementById('opportunity_type').value,
+                channel: 'public_website',
+                messages: [],
+                metadata: {
+                    ...getUtmParams(),
+                    referrer: document.referrer,
+                    user_agent: navigator.userAgent,
+                    timestamp: new Date().toISOString(),
+                    page_url: window.location.href
+                }
+            };
+
+            // Agregar mensaje inicial si existe
+            const message = document.getElementById('message').value;
+            if (message) {
+                formData.messages.push(message);
+            } else {
+                formData.messages.push(
+                    `Cliente interesado en la propiedad #${formData.property_id} (${formData.opportunity_type === 'sale' ? 'Compra' : 'Alquiler'})`
+                );
+            }
+
+            try {
+                // Enviar a la API
+                const response = await fetch(`${API_URL}/opportunities`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (!response.ok) {
+                    throw new Error('Error en la respuesta del servidor');
+                }
+
+                const result = await response.json();
+                console.log('Oportunidad creada:', result);
+
+                // Mostrar mensaje de éxito
+                successMessage.style.display = 'block';
+                
+                // Limpiar formulario
+                document.getElementById('interestForm').reset();
+                
+                // Scroll al mensaje de éxito
+                successMessage.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+                // Opcional: Redirigir después de 3 segundos
+                // setTimeout(() => {
+                //     window.location.href = '/thank-you';
+                // }, 3000);
+
+            } catch (error) {
+                console.error('Error al crear oportunidad:', error);
+                errorMessage.style.display = 'block';
+                errorMessage.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        });
+
+        // Tracking de tiempo en la página (opcional)
+        const pageLoadTime = Date.now();
+        window.addEventListener('beforeunload', () => {
+            const timeOnPage = Math.floor((Date.now() - pageLoadTime) / 1000);
+            console.log(`Usuario estuvo ${timeOnPage} segundos en la página`);
+            // Aquí podrías enviar esta métrica a tu servidor de analytics
+        });
+    </script>
+
+    <hr style="margin-top: 40px; margin-bottom: 40px;">
+
+    <div class="property-info">
+        <h3>Notas de Implementación</h3>
+        <ul>
+            <li><strong>API URL:</strong> Cambia <code>http://localhost:3005</code> a tu URL de producción</li>
+            <li><strong>Validación:</strong> Este ejemplo incluye validación básica HTML5. Considera agregar validación adicional del lado del cliente.</li>
+            <li><strong>CORS:</strong> Asegúrate de que tu servidor wapp permita requests desde tu dominio público</li>
+            <li><strong>Analytics:</strong> El código captura parámetros UTM y referrer para tracking de marketing</li>
+            <li><strong>Seguridad:</strong> En producción, considera implementar reCAPTCHA para prevenir spam</li>
+            <li><strong>UX:</strong> Podrías agregar un loading spinner durante el envío del formulario</li>
+        </ul>
+    </div>
+
+    <div class="property-info" style="margin-top: 20px;">
+        <h3>Ejemplo de Uso Programático (JavaScript)</h3>
+        <pre style="background-color: #f5f5f5; padding: 15px; border-radius: 4px; overflow-x: auto;">
+<code>// Crear una oportunidad desde JavaScript
+async function createOpportunity(propertyId, contactInfo, type) {
+    const response = await fetch('http://localhost:3005/opportunities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            channel: 'public_website',
+            property_id: propertyId,
+            email: contactInfo.email,
+            phone: contactInfo.phone,
+            mobile: contactInfo.mobile,
+            contact_name: contactInfo.name,
+            opportunity_type: type, // 'sale' o 'rental'
+            messages: [contactInfo.message || 'Cliente interesado'],
+            metadata: {
+                utm_source: 'google',
+                utm_campaign: 'summer_2024'
+            }
+        })
+    });
+    
+    return await response.json();
+}
+
+// Uso
+createOpportunity(123, {
+    name: 'Juan Pérez',
+    email: 'juan@example.com',
+    mobile: '+54 9 11 1234-5678',
+    message: 'Me interesa esta propiedad'
+}, 'sale');</code>
+        </pre>
+    </div>
+</body>
+</html>
+

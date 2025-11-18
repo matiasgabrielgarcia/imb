@@ -1,0 +1,287 @@
+{
+  "info": {
+    "name": "IMB - Opportunities API",
+    "description": "Colección de Postman para probar el sistema de Oportunidades",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Opportunities",
+      "item": [
+        {
+          "name": "Get All Opportunities",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3005/opportunities",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3005",
+              "path": ["opportunities"]
+            },
+            "description": "Obtiene todas las oportunidades sin filtros"
+          }
+        },
+        {
+          "name": "Get Opportunities by Type (Sale)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3005/opportunities?type=sale",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3005",
+              "path": ["opportunities"],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "sale"
+                }
+              ]
+            },
+            "description": "Obtiene solo las oportunidades de venta"
+          }
+        },
+        {
+          "name": "Get Opportunities by Type (Rental)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3005/opportunities?type=rental",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3005",
+              "path": ["opportunities"],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "rental"
+                }
+              ]
+            },
+            "description": "Obtiene solo las oportunidades de alquiler"
+          }
+        },
+        {
+          "name": "Get Opportunities by Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3005/opportunities?status=pending_contact",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3005",
+              "path": ["opportunities"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "pending_contact"
+                }
+              ]
+            },
+            "description": "Obtiene oportunidades con un estado específico"
+          }
+        },
+        {
+          "name": "Get Single Opportunity",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3005/opportunities/1",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3005",
+              "path": ["opportunities", "1"]
+            },
+            "description": "Obtiene una oportunidad específica por ID"
+          }
+        },
+        {
+          "name": "Create Opportunity (Sale)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"channel\": \"public_website\",\n  \"property_id\": 1,\n  \"email\": \"cliente@example.com\",\n  \"phone\": \"011-4567-8910\",\n  \"mobile\": \"+54 9 11 1234-5678\",\n  \"contact_name\": \"Juan Pérez\",\n  \"messages\": [\"Estoy interesado en comprar esta propiedad\"],\n  \"opportunity_type\": \"sale\",\n  \"metadata\": {\n    \"utm_source\": \"google\",\n    \"utm_campaign\": \"summer_2024\"\n  }\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3005/opportunities",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3005",
+              "path": ["opportunities"]
+            },
+            "description": "Crea una nueva oportunidad de venta"
+          }
+        },
+        {
+          "name": "Create Opportunity (Rental)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"channel\": \"public_website\",\n  \"property_id\": 2,\n  \"email\": \"inquilino@example.com\",\n  \"mobile\": \"+54 9 11 9876-5432\",\n  \"contact_name\": \"María González\",\n  \"messages\": [\"Quisiera alquilar esta propiedad\"],\n  \"opportunity_type\": \"rental\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3005/opportunities",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3005",
+              "path": ["opportunities"]
+            },
+            "description": "Crea una nueva oportunidad de alquiler"
+          }
+        },
+        {
+          "name": "Update Opportunity Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"waiting_response\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3005/opportunities/1/status",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3005",
+              "path": ["opportunities", "1", "status"]
+            },
+            "description": "Actualiza el estado de una oportunidad (usado en drag & drop)"
+          }
+        },
+        {
+          "name": "Update Opportunity",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"nuevo_email@example.com\",\n  \"phone\": \"011-9999-8888\",\n  \"contact_name\": \"Juan Carlos Pérez\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3005/opportunities/1",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3005",
+              "path": ["opportunities", "1"]
+            },
+            "description": "Actualiza información de una oportunidad"
+          }
+        },
+        {
+          "name": "Add Message to Opportunity",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Cliente llamó el 15/11/2024. Volverá a contactar mañana.\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3005/opportunities/1/messages",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3005",
+              "path": ["opportunities", "1", "messages"]
+            },
+            "description": "Agrega un mensaje/nota a una oportunidad"
+          }
+        },
+        {
+          "name": "Delete Opportunity",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3005/opportunities/1",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3005",
+              "path": ["opportunities", "1"]
+            },
+            "description": "Elimina una oportunidad"
+          }
+        },
+        {
+          "name": "Test - Create from Website",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"property_id\": 1,\n  \"email\": \"test@example.com\",\n  \"phone\": \"123456789\",\n  \"mobile\": \"987654321\",\n  \"contact_name\": \"Cliente de Prueba\",\n  \"opportunity_type\": \"sale\",\n  \"initial_message\": \"Interesado en esta propiedad desde el sitio web\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3005/opportunities/test/from-website",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3005",
+              "path": ["opportunities", "test", "from-website"]
+            },
+            "description": "Endpoint de prueba para simular una oportunidad desde el sitio público"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Status Reference",
+      "item": [
+        {
+          "name": "Valid Status Values",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3005/",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3005",
+              "path": [""]
+            },
+            "description": "Estados válidos:\n- pending_contact\n- waiting_response\n- evolved\n- take_action\n- frozen\n- appraisals\n- rental_agency\n- rental_outsourced"
+          }
+        }
+      ]
+    }
+  ]
+}
+

@@ -225,3 +225,122 @@ export const notificationsAPI = {
   getAll: (): Promise<NotificationsResponse> => 
     fetch(`${WAPP_API_URL}/notifications`).then(r => r.json()),
 };
+
+// Opportunities API (connects to wapp service)
+export type OpportunityStatus = 
+  | 'pending_contact'
+  | 'waiting_response'
+  | 'evolved'
+  | 'take_action'
+  | 'frozen'
+  | 'appraisals'
+  | 'rental_agency'
+  | 'rental_outsourced';
+
+export type OpportunityType = 'sale' | 'rental';
+
+export interface OpportunityDto {
+  id: number;
+  channel: string;
+  property_id?: number;
+  email?: string;
+  phone?: string;
+  mobile?: string;
+  contact_name?: string;
+  messages: string[];
+  status: OpportunityStatus;
+  opportunity_type: OpportunityType;
+  received_at: string;
+  created_at: string;
+  updated_at: string;
+  metadata?: any;
+}
+
+export interface GroupedOpportunities {
+  pending_contact: OpportunityDto[];
+  waiting_response: OpportunityDto[];
+  evolved: OpportunityDto[];
+  take_action: OpportunityDto[];
+  frozen: OpportunityDto[];
+  appraisals: OpportunityDto[];
+  rental_agency: OpportunityDto[];
+  rental_outsourced: OpportunityDto[];
+}
+
+export interface OpportunitiesResponse {
+  total: number;
+  opportunities: OpportunityDto[];
+  grouped: GroupedOpportunities;
+}
+
+export interface CreateOpportunityRequest {
+  channel?: string;
+  property_id?: number;
+  email?: string;
+  phone?: string;
+  mobile?: string;
+  contact_name?: string;
+  messages?: string[];
+  status?: OpportunityStatus;
+  opportunity_type: OpportunityType;
+  metadata?: any;
+}
+
+export interface UpdateOpportunityStatusRequest {
+  status: OpportunityStatus;
+}
+
+export const opportunitiesAPI = {
+  getAll: (type?: OpportunityType, status?: OpportunityStatus): Promise<OpportunitiesResponse> => {
+    const params = new URLSearchParams();
+    if (type) params.append('type', type);
+    if (status) params.append('status', status);
+    const queryString = params.toString();
+    const url = `${WAPP_API_URL}/opportunities${queryString ? `?${queryString}` : ''}`;
+    return fetch(url).then(r => r.json());
+  },
+  
+  get: (id: number): Promise<OpportunityDto> =>
+    fetch(`${WAPP_API_URL}/opportunities/${id}`).then(r => r.json()),
+  
+  create: (data: CreateOpportunityRequest): Promise<{ success: boolean; opportunity: OpportunityDto }> =>
+    fetch(`${WAPP_API_URL}/opportunities`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).then(r => r.json()),
+  
+  updateStatus: (id: number, status: OpportunityStatus): Promise<{ success: boolean; opportunity: OpportunityDto }> =>
+    fetch(`${WAPP_API_URL}/opportunities/${id}/status`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    }).then(r => r.json()),
+  
+  update: (id: number, data: Partial<OpportunityDto>): Promise<{ success: boolean; opportunity: OpportunityDto }> =>
+    fetch(`${WAPP_API_URL}/opportunities/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).then(r => r.json()),
+  
+  addMessage: (id: number, message: string): Promise<{ success: boolean; opportunity: OpportunityDto }> =>
+    fetch(`${WAPP_API_URL}/opportunities/${id}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message }),
+    }).then(r => r.json()),
+  
+  remove: (id: number): Promise<{ success: boolean; message: string }> =>
+    fetch(`${WAPP_API_URL}/opportunities/${id}`, {
+      method: 'DELETE',
+    }).then(r => r.json()),
+  
+  // Test endpoint
+  createTestFromWebsite: (data: CreateOpportunityRequest & { initial_message?: string }): Promise<{ success: boolean; opportunity: OpportunityDto }> =>
+    fetch(`${WAPP_API_URL}/opportunities/test/from-website`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).then(r => r.json()),
+};
