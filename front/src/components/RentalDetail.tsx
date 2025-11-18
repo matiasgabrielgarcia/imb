@@ -158,9 +158,9 @@ day: 'numeric'
         </Button>
         <Button
           variant="outlined"
-          onClick={() => navigate('/propiedades')}
+          onClick={() => navigate(-1)}
         >
-          Volver a la lista
+          Volver
         </Button>
       </Box>
     </Box>

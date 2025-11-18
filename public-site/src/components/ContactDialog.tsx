@@ -30,7 +30,6 @@ const ContactDialog: React.FC<ContactDialogProps> = ({
     contact_name: '',
     email: '',
     phone: '',
-    mobile: '',
     message: '',
   });
   const [loading, setLoading] = useState(false);
@@ -53,8 +52,8 @@ const ContactDialog: React.FC<ContactDialogProps> = ({
       return;
     }
     
-    if (!formData.email && !formData.phone && !formData.mobile) {
-      setError('Por favor, proporciona al menos un método de contacto');
+    if (!formData.email && !formData.phone) {
+      setError('Por favor, proporciona al menos un método de contacto (email o teléfono)');
       return;
     }
 
@@ -67,7 +66,6 @@ const ContactDialog: React.FC<ContactDialogProps> = ({
         contact_name: formData.contact_name,
         email: formData.email || undefined,
         phone: formData.phone || undefined,
-        mobile: formData.mobile || undefined,
         message: formData.message || undefined,
         opportunity_type: opportunityType,
       };
@@ -81,7 +79,6 @@ const ContactDialog: React.FC<ContactDialogProps> = ({
           contact_name: '',
           email: '',
           phone: '',
-          mobile: '',
           message: '',
         });
         setSuccess(false);
@@ -101,7 +98,6 @@ const ContactDialog: React.FC<ContactDialogProps> = ({
         contact_name: '',
         email: '',
         phone: '',
-        mobile: '',
         message: '',
       });
       setError(null);
@@ -152,7 +148,7 @@ const ContactDialog: React.FC<ContactDialogProps> = ({
               onChange={handleChange}
               fullWidth
               disabled={loading || success}
-              helperText="Proporciona al menos un método de contacto"
+              helperText="Proporciona al menos un método de contacto (email o teléfono)"
             />
 
             <TextField
@@ -162,15 +158,7 @@ const ContactDialog: React.FC<ContactDialogProps> = ({
               onChange={handleChange}
               fullWidth
               disabled={loading || success}
-            />
-
-            <TextField
-              label="Celular"
-              name="mobile"
-              value={formData.mobile}
-              onChange={handleChange}
-              fullWidth
-              disabled={loading || success}
+              placeholder="Ej: +54 11 1234-5678"
             />
 
             <TextField

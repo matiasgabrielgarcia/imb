@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -13,12 +14,12 @@ import {
   IconButton,
   Stack,
   Divider,
-  Tooltip
+  Tooltip,
+  Link
 } from '@mui/material';
 import {
   Email as EmailIcon,
   Phone as PhoneIcon,
-  Smartphone as MobileIcon,
   Home as PropertyIcon,
   Message as MessageIcon,
   AccessTime as TimeIcon
@@ -64,10 +65,26 @@ const statusConfig: Record<OpportunityStatus, { label: string; color: string }> 
 };
 
 const OpportunitiesView: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [opportunities, setOpportunities] = useState<OpportunityDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tabValue, setTabValue] = useState<number>(0); // 0 = Sale, 1 = Rental
+  
+  // Determine tab based on route
+  const getTabFromPath = (path: string): number => {
+    if (path.includes('/alquileres')) return 1;
+    return 0; // Default to ventas
+  };
+  
+  const tabValue = getTabFromPath(location.pathname);
+
+  useEffect(() => {
+    // Redirect to /ventas if on base /oportunidades route
+    if (location.pathname === '/oportunidades') {
+      navigate('/oportunidades/ventas', { replace: true });
+    }
+  }, [location.pathname, navigate]);
 
   useEffect(() => {
     loadOpportunities();
@@ -89,7 +106,8 @@ const OpportunitiesView: React.FC = () => {
   };
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
-    setTabValue(newValue);
+    const path = newValue === 0 ? '/oportunidades/ventas' : '/oportunidades/alquileres';
+    navigate(path);
   };
 
   const handleDragEnd = async (result: DropResult) => {
@@ -221,15 +239,16 @@ const OpportunitiesView: React.FC = () => {
                 </Box>
               )}
 
-              {/* Phone */}
-              {opportunity.phone && (
+              {/* Phone - Show phone or mobile (prefer phone) */}
+              {(opportunity.phone || opportunity.mobile) && (
                 <Box 
                   display="flex" 
                   alignItems="center" 
                   gap={1}
                   onClick={(e) => {
                     e.stopPropagation();
-                    openWhatsApp(opportunity.phone!);
+                    const phoneNumber = opportunity.phone || opportunity.mobile;
+                    if (phoneNumber) openWhatsApp(phoneNumber);
                   }}
                   sx={{
                     cursor: 'pointer',
@@ -250,20 +269,20 @@ const OpportunitiesView: React.FC = () => {
                       textDecoration: 'underline',
                     }}
                   >
-                    {opportunity.phone}
+                    {opportunity.phone || opportunity.mobile}
                   </Typography>
                 </Box>
               )}
 
-              {/* Mobile */}
-              {opportunity.mobile && (
+              {/* Property ID with link */}
+              {opportunity.property_id && (
                 <Box 
                   display="flex" 
                   alignItems="center" 
                   gap={1}
                   onClick={(e) => {
                     e.stopPropagation();
-                    openWhatsApp(opportunity.mobile!);
+                    navigate(`/propiedades/${opportunity.property_id}`);
                   }}
                   sx={{
                     cursor: 'pointer',
@@ -271,31 +290,27 @@ const OpportunitiesView: React.FC = () => {
                     borderRadius: '4px',
                     transition: 'background-color 0.2s',
                     '&:hover': {
-                      backgroundColor: 'rgba(37, 211, 102, 0.1)',
+                      backgroundColor: 'rgba(25, 118, 210, 0.08)',
                     },
                   }}
                 >
-                  <MobileIcon fontSize="small" color="success" />
-                  <Typography 
-                    variant="body2" 
-                    sx={{ 
-                      color: '#25d366',
-                      fontWeight: 500,
+                  <PropertyIcon fontSize="small" color="primary" />
+                  <Link
+                    component="button"
+                    variant="body2"
+                    onClick={(e: React.MouseEvent) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      navigate(`/propiedades/${opportunity.property_id}`);
+                    }}
+                    sx={{
                       textDecoration: 'underline',
+                      color: 'primary.main',
+                      fontWeight: 500,
                     }}
                   >
-                    {opportunity.mobile}
-                  </Typography>
-                </Box>
-              )}
-
-              {/* Property ID */}
-              {opportunity.property_id && (
-                <Box display="flex" alignItems="center" gap={1}>
-                  <PropertyIcon fontSize="small" color="action" />
-                  <Typography variant="body2" color="text.secondary">
-                    Propiedad: #{opportunity.property_id}
-                  </Typography>
+                    Propiedad #{opportunity.property_id}
+                  </Link>
                 </Box>
               )}
 

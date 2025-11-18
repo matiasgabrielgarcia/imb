@@ -51,7 +51,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
     { text: 'Propiedades', icon: <HouseIcon />, path: '/propiedades' },
     { text: 'Notificaciones', icon: <NotificationsIcon />, path: '/notificaciones' },
-    { text: 'Oportunidades', icon: <TrendingUpIcon />, path: '/oportunidades' },
+    { text: 'Oportunidades', icon: <TrendingUpIcon />, path: '/oportunidades/ventas' },
   ];
 
   const drawer = (isCollapsed: boolean) => (

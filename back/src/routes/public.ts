@@ -166,7 +166,7 @@ router.get('/properties/:id', async (req: Request, res: Response) => {
 // Create opportunity from public website (no auth required)
 router.post('/contact', async (req: Request, res: Response) => {
   try {
-    const { property_id, contact_name, email, phone, mobile, message, opportunity_type } = req.body;
+    const { property_id, contact_name, email, phone, message, opportunity_type } = req.body;
     
     // Validation
     if (!property_id || !contact_name || !opportunity_type) {
@@ -175,9 +175,9 @@ router.post('/contact', async (req: Request, res: Response) => {
       });
     }
     
-    if (!email && !phone && !mobile) {
+    if (!email && !phone) {
       return res.status(400).json({ 
-        error: 'At least one contact method (email, phone, or mobile) is required' 
+        error: 'At least one contact method (email or phone) is required' 
       });
     }
     
@@ -193,7 +193,7 @@ router.post('/contact', async (req: Request, res: Response) => {
       contact_name,
       email,
       phone,
-      mobile,
+      mobile: phone, // Store phone in mobile field as well for compatibility
       messages: message ? [message] : [],
       status: 'pending_contact',
       opportunity_type,

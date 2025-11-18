@@ -50,7 +50,6 @@ export interface ContactFormData {
   contact_name: string;
   email?: string;
   phone?: string;
-  mobile?: string;
   message?: string;
   opportunity_type: 'sale' | 'rental';
 }

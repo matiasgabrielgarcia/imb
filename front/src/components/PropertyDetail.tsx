@@ -189,9 +189,9 @@ const PropertyDetail: React.FC = () => {
       <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
         <Button
           variant="outlined"
-          onClick={() => navigate('/propiedades')}
+          onClick={() => navigate(-1)}
         >
-          Volver a la lista
+          Volver
         </Button>
         <Button
           variant="contained"

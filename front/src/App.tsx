@@ -144,6 +144,22 @@ function App() {
                   </ProtectedRoute>
                 } 
               />
+              <Route 
+                path="/oportunidades/ventas" 
+                element={
+                  <ProtectedRoute>
+                    <OpportunitiesView />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/oportunidades/alquileres" 
+                element={
+                  <ProtectedRoute>
+                    <OpportunitiesView />
+                  </ProtectedRoute>
+                } 
+              />
               <Route path="/" element={<Navigate to="/profile" />} />
             </Routes>
           </div>
