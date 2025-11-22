@@ -10,6 +10,7 @@ export interface Property {
   rev: string;
   latitude: number;
   longitude: number;
+  dni?: string;
   created_at: Date;
   updated_at: Date;
 }
@@ -23,6 +24,7 @@ export interface CreatePropertyData {
   rev: string;
   latitude: number;
   longitude: number;
+  dni?: string;
 }
 
 export interface UpdatePropertyData {
@@ -34,13 +36,14 @@ export interface UpdatePropertyData {
   rev?: string;
   latitude?: number;
   longitude?: number;
+  dni?: string;
 }
 
 export class PropertyModel {
   static async create(data: CreatePropertyData): Promise<Property> {
     const result = await query(
-      `INSERT INTO properties (numero, direccion, m2, cliente, fecha, rev, latitude, longitude)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO properties (numero, direccion, m2, cliente, fecha, rev, latitude, longitude, dni)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
       [
         data.numero,
@@ -51,6 +54,7 @@ export class PropertyModel {
         data.rev,
         data.latitude,
         data.longitude,
+        data.dni || null,
       ]
     );
     return result.rows[0];

@@ -37,6 +37,7 @@ const PropertyEdit: React.FC = () => {
       rev: '',
       latitude: -34.6037,
       longitude: -58.3816,
+      dni: '',
     }
   });
 
@@ -52,6 +53,7 @@ const PropertyEdit: React.FC = () => {
         rev: property.rev || '',
         latitude: property.latitude || -34.6037,
         longitude: property.longitude || -58.3816,
+        dni: property.dni || '',
       });
     }
   }, [property, reset]);
@@ -131,6 +133,14 @@ const PropertyEdit: React.FC = () => {
                   control={control}
                   label="Cliente"
                   required
+                />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <FormField
+                  name="dni"
+                  control={control}
+                  label="DNI (Opcional)"
+                  helperText="7-8 dígitos numéricos"
                 />
               </Grid>
               <Grid size={12}>

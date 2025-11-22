@@ -1,6 +1,6 @@
 import sharp from 'sharp';
 import { createStorageService, IStorageService } from './storageService';
-import pool from '../database/connection';
+import { query } from '../database/connection';
 
 export interface ImageUploadResult {
   id: number;
@@ -61,14 +61,14 @@ export class ImageService {
 
     // If this should be primary, unset other primary images
     if (isPrimary) {
-      await pool.query(
+      await query(
         'UPDATE property_images SET is_primary = false WHERE property_id = $1',
         [propertyId]
       );
     }
 
     // Save to database
-    const result = await pool.query(
+    const result = await query(
       `INSERT INTO property_images 
        (property_id, storage_path, url, thumbnail_path, thumbnail_url, is_primary, file_size, mime_type)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -98,7 +98,7 @@ export class ImageService {
    * Get all images for a property
    */
   async getPropertyImages(propertyId: number) {
-    const result = await pool.query(
+    const result = await query(
       `SELECT id, property_id, url, thumbnail_url, is_primary, created_at
        FROM property_images
        WHERE property_id = $1
@@ -112,7 +112,7 @@ export class ImageService {
    * Get primary image for a property
    */
   async getPrimaryImage(propertyId: number) {
-    const result = await pool.query(
+    const result = await query(
       `SELECT id, property_id, url, thumbnail_url, is_primary
        FROM property_images
        WHERE property_id = $1 AND is_primary = true
@@ -126,29 +126,18 @@ export class ImageService {
    * Set an image as primary
    */
   async setPrimaryImage(propertyId: number, imageId: number): Promise<void> {
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      
-      // Unset all primary images for this property
-      await client.query(
-        'UPDATE property_images SET is_primary = false WHERE property_id = $1',
-        [propertyId]
-      );
-      
-      // Set the new primary image
-      await client.query(
-        'UPDATE property_images SET is_primary = true WHERE id = $1 AND property_id = $2',
-        [imageId, propertyId]
-      );
-      
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    // Note: Transactions not fully supported in Supabase mode
+    // Unset all primary images for this property
+    await query(
+      'UPDATE property_images SET is_primary = false WHERE property_id = $1',
+      [propertyId]
+    );
+    
+    // Set the new primary image
+    await query(
+      'UPDATE property_images SET is_primary = true WHERE id = $1 AND property_id = $2',
+      [imageId, propertyId]
+    );
   }
 
   /**
@@ -156,7 +145,7 @@ export class ImageService {
    */
   async deleteImage(propertyId: number, imageId: number): Promise<void> {
     // Get image paths
-    const result = await pool.query(
+    const result = await query(
       'SELECT storage_path, thumbnail_path FROM property_images WHERE id = $1 AND property_id = $2',
       [imageId, propertyId]
     );
@@ -174,7 +163,7 @@ export class ImageService {
     }
 
     // Delete from database
-    await pool.query('DELETE FROM property_images WHERE id = $1', [imageId]);
+    await query('DELETE FROM property_images WHERE id = $1', [imageId]);
   }
 }
 

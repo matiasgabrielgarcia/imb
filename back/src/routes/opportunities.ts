@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { OpportunityModel, CreateOpportunityData, UpdateOpportunityData } from '../models/Opportunity';
+import { OpportunityNoteModel, CreateOpportunityNoteData, UpdateOpportunityNoteData } from '../models/OpportunityNote';
 import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
@@ -103,6 +104,83 @@ router.post('/:id/message', authenticateToken, async (req: Request, res: Respons
     res.json(updated);
   } catch (error) {
     console.error('Add message error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Opportunity Notes routes
+// Get all notes for an opportunity
+router.get('/:opportunityId/notes', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const opportunityId = Number(req.params.opportunityId);
+    const notes = await OpportunityNoteModel.findByOpportunityId(opportunityId);
+    res.json(notes);
+  } catch (error) {
+    console.error('Get opportunity notes error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Create a new note
+router.post('/:opportunityId/notes', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const opportunityId = Number(req.params.opportunityId);
+    const noteData: CreateOpportunityNoteData = {
+      opportunity_id: opportunityId,
+      note: req.body.note,
+      created_by: req.body.created_by,
+    };
+    
+    if (!noteData.note || !noteData.note.trim()) {
+      return res.status(400).json({ error: 'Note is required' });
+    }
+
+    const created = await OpportunityNoteModel.create(noteData);
+    res.status(201).json(created);
+  } catch (error) {
+    console.error('Create opportunity note error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update a note
+router.put('/:opportunityId/notes/:id', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const opportunityId = Number(req.params.opportunityId);
+    const updateData: UpdateOpportunityNoteData = req.body;
+
+    // Verify note belongs to opportunity
+    const note = await OpportunityNoteModel.findById(id);
+    if (!note || note.opportunity_id !== opportunityId) {
+      return res.status(404).json({ error: 'Note not found' });
+    }
+
+    const updated = await OpportunityNoteModel.update(id, updateData);
+    if (!updated) return res.status(404).json({ error: 'Not found' });
+    res.json(updated);
+  } catch (error) {
+    console.error('Update opportunity note error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete a note
+router.delete('/:opportunityId/notes/:id', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const opportunityId = Number(req.params.opportunityId);
+
+    // Verify note belongs to opportunity
+    const note = await OpportunityNoteModel.findById(id);
+    if (!note || note.opportunity_id !== opportunityId) {
+      return res.status(404).json({ error: 'Note not found' });
+    }
+
+    await OpportunityNoteModel.remove(id);
+    res.status(204).send();
+  } catch (error) {
+    console.error('Delete opportunity note error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

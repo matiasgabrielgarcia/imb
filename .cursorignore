@@ -1,0 +1,14 @@
+# Cursor AI can access these files (override .gitignore for AI assistance)
+# Temporarily allowing .env files for setup assistance
+# REMOVE THIS FILE or add .env back when setup is complete!
+
+# Still ignore these:
+**/node_modules/
+**/dist/
+**/build/
+*.log
+
+# Allow .env files (commented out to allow access)
+# .env
+# .env.local
+

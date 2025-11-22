@@ -107,6 +107,7 @@ export interface PropertyDto {
   rev: string;
   latitude: number;
   longitude: number;
+  dni?: string;
 }
 
 export type CreatePropertyRequest = Omit<PropertyDto, 'id'>;
@@ -251,9 +252,19 @@ export interface OpportunityDto {
   status: OpportunityStatus;
   opportunity_type: OpportunityType;
   received_at: string;
+  status_updated_at?: string;
   created_at: string;
   updated_at: string;
   metadata?: any;
+}
+
+export interface OpportunityNoteDto {
+  id: number;
+  opportunity_id: number;
+  note: string;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface GroupedOpportunities {
@@ -291,10 +302,11 @@ export interface UpdateOpportunityStatusRequest {
 }
 
 export const opportunitiesAPI = {
-  getAll: (type?: OpportunityType, status?: OpportunityStatus): Promise<OpportunitiesResponse> => {
+  getAll: (type?: OpportunityType, status?: OpportunityStatus, months?: number): Promise<OpportunitiesResponse> => {
     const params = new URLSearchParams();
     if (type) params.append('type', type);
     if (status) params.append('status', status);
+    if (months) params.append('months', months.toString());
     const queryString = params.toString();
     const url = `${WAPP_API_URL}/opportunities${queryString ? `?${queryString}` : ''}`;
     return fetch(url).then(r => r.json());
@@ -342,5 +354,28 @@ export const opportunitiesAPI = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
+    }).then(r => r.json()),
+
+  // Notes endpoints
+  getNotes: (id: number): Promise<{ success: boolean; notes: OpportunityNoteDto[] }> =>
+    fetch(`${WAPP_API_URL}/opportunities/${id}/notes`).then(r => r.json()),
+
+  createNote: (id: number, note: string, created_by?: string): Promise<{ success: boolean; note: OpportunityNoteDto }> =>
+    fetch(`${WAPP_API_URL}/opportunities/${id}/notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note, created_by }),
+    }).then(r => r.json()),
+
+  updateNote: (id: number, noteId: number, note: string): Promise<{ success: boolean; note: OpportunityNoteDto }> =>
+    fetch(`${WAPP_API_URL}/opportunities/${id}/notes/${noteId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note }),
+    }).then(r => r.json()),
+
+  deleteNote: (id: number, noteId: number): Promise<{ success: boolean; message: string }> =>
+    fetch(`${WAPP_API_URL}/opportunities/${id}/notes/${noteId}`, {
+      method: 'DELETE',
     }).then(r => r.json()),
 };

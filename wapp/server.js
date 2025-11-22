@@ -1,7 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const { Pool } = require('pg');
+const { query } = require('./db-connection');
 
 // Load environment variables from .env file
 require('dotenv').config();
@@ -12,15 +12,6 @@ const app = express();
 const PORT = process.env.PORT || 3005;
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN || 'my_secure_verify_token_123';
 const MESSAGES_DIR = process.env.MESSAGES_DIR || './messages';
-
-// Database configuration
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 5432,
-  database: process.env.DB_NAME || '2fa_auth',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres',
-});
 
 // Middleware
 app.use(express.json());
@@ -144,7 +135,7 @@ app.post('/webhook/test', async (req, res) => {
 // Get all saved messages
 app.get('/messages', async (req, res) => {
   try {
-    const result = await pool.query(
+    const result = await query(
       `SELECT 
         id,
         message_from as "messageFrom",
@@ -174,7 +165,7 @@ app.get('/messages', async (req, res) => {
 // Get notifications summary (categorized messages)
 app.get('/notifications', async (req, res) => {
   try {
-    const result = await pool.query(
+    const result = await query(
       `SELECT 
         id,
         message_from as "messageFrom",
@@ -311,7 +302,7 @@ function categorizeMessage(messageText) {
 // Save message to database
 async function saveMessage(messageData) {
   try {
-    await pool.query(
+    await query(
       `INSERT INTO whatsapp_messages (
         message_from, message, datetime, message_type, message_id, category
       ) VALUES ($1, $2, $3, $4, $5, $6)
@@ -344,27 +335,44 @@ async function saveMessage(messageData) {
 // Get all opportunities
 app.get('/opportunities', async (req, res) => {
   try {
-    const { type, status } = req.query;
+    const { type, status, months } = req.query;
     
-    let query = 'SELECT * FROM opportunities WHERE 1=1';
+    let sqlQuery = 'SELECT * FROM opportunities WHERE 1=1';
     const params = [];
     let paramIndex = 1;
 
     if (type) {
-      query += ` AND opportunity_type = $${paramIndex}`;
+      sqlQuery += ` AND opportunity_type = $${paramIndex}`;
       params.push(type);
       paramIndex++;
     }
 
     if (status) {
-      query += ` AND status = $${paramIndex}`;
+      sqlQuery += ` AND status = $${paramIndex}`;
       params.push(status);
       paramIndex++;
     }
 
-    query += ' ORDER BY received_at DESC';
+    // Date filter: months parameter (1, 2, or 3)
+    if (months) {
+      const monthsNum = parseInt(months);
+      if ([1, 2, 3].includes(monthsNum)) {
+        // Safe: monthsNum is validated to be 1, 2, or 3 only
+        sqlQuery += ` AND received_at >= NOW() - INTERVAL '${monthsNum} months'`;
+      }
+    }
 
-    const result = await pool.query(query, params);
+    sqlQuery += ' ORDER BY received_at DESC';
+
+    const result = await query(sqlQuery, params);
+
+    // Auto-freeze check: Check all opportunities for auto-freeze
+    for (const opp of result.rows) {
+      await checkAndAutoFreeze(opp.id, opp.status);
+    }
+
+    // Re-fetch after potential status changes
+    const finalResult = await query(sqlQuery, params);
 
     // Group by status for Kanban board
     const grouped = {
@@ -378,15 +386,15 @@ app.get('/opportunities', async (req, res) => {
       rental_outsourced: []
     };
 
-    result.rows.forEach(opp => {
+    finalResult.rows.forEach(opp => {
       if (grouped[opp.status]) {
         grouped[opp.status].push(opp);
       }
     });
 
     res.json({
-      total: result.rows.length,
-      opportunities: result.rows,
+      total: finalResult.rows.length,
+      opportunities: finalResult.rows,
       grouped
     });
   } catch (error) {
@@ -399,7 +407,7 @@ app.get('/opportunities', async (req, res) => {
 app.get('/opportunities/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await pool.query(
+    const result = await query(
       'SELECT * FROM opportunities WHERE id = $1',
       [id]
     );
@@ -445,7 +453,7 @@ app.post('/opportunities', async (req, res) => {
       });
     }
 
-    const result = await pool.query(
+    const result = await query(
       `INSERT INTO opportunities (
         channel, property_id, email, phone, mobile, contact_name,
         messages, status, opportunity_type, metadata, received_at
@@ -500,14 +508,34 @@ app.put('/opportunities/:id/status', async (req, res) => {
       });
     }
 
-    const result = await pool.query(
-      'UPDATE opportunities SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
-      [status, id]
+    // Check if status is actually changing to update status_updated_at
+    const currentOpp = await query(
+      'SELECT status FROM opportunities WHERE id = $1',
+      [id]
     );
 
-    if (result.rows.length === 0) {
+    if (currentOpp.rows.length === 0) {
       return res.status(404).json({ error: 'Opportunity not found' });
     }
+
+    const currentStatus = currentOpp.rows[0].status;
+    let updateQuery;
+    let params;
+
+    if (currentStatus !== status) {
+      // Status is changing, update status_updated_at
+      updateQuery = 'UPDATE opportunities SET status = $1, status_updated_at = NOW(), updated_at = NOW() WHERE id = $2 RETURNING *';
+      params = [status, id];
+    } else {
+      // Status not changing, just update updated_at
+      updateQuery = 'UPDATE opportunities SET updated_at = NOW() WHERE id = $1 RETURNING *';
+      params = [id];
+    }
+
+    const result = await query(updateQuery, params);
+
+    // Auto-freeze check: if status has exceeded max time, move to frozen
+    await checkAndAutoFreeze(id, status);
 
     res.json({
       success: true,
@@ -518,6 +546,43 @@ app.put('/opportunities/:id/status', async (req, res) => {
     res.status(500).json({ error: 'Failed to update opportunity status' });
   }
 });
+
+// Auto-freeze function: Check if status has exceeded max time and freeze if needed
+async function checkAndAutoFreeze(opportunityId, currentStatus) {
+  const MAX_DAYS_BY_STATUS = {
+    'pending_contact': 5,
+    'waiting_response': 5,
+    'evolved': 5,
+    'take_action': 5
+  };
+
+  const maxDays = MAX_DAYS_BY_STATUS[currentStatus];
+  if (!maxDays) return; // Status doesn't have a time limit
+
+  try {
+    const result = await query(
+      `SELECT status_updated_at FROM opportunities WHERE id = $1`,
+      [opportunityId]
+    );
+
+    if (result.rows.length === 0) return;
+
+    const statusUpdatedAt = new Date(result.rows[0].status_updated_at);
+    const now = new Date();
+    const diffDays = Math.floor((now - statusUpdatedAt) / (1000 * 60 * 60 * 24));
+
+    if (diffDays > maxDays) {
+      // Status has exceeded max time, freeze it
+      await query(
+        'UPDATE opportunities SET status = $1, status_updated_at = NOW(), updated_at = NOW() WHERE id = $2',
+        ['frozen', opportunityId]
+      );
+      console.log(`Opportunity ${opportunityId} auto-frozen after ${diffDays} days in status ${currentStatus}`);
+    }
+  } catch (error) {
+    console.error('Error checking auto-freeze:', error);
+  }
+}
 
 // Update opportunity (full update)
 app.put('/opportunities/:id', async (req, res) => {
@@ -534,39 +599,96 @@ app.put('/opportunities/:id', async (req, res) => {
       metadata
     } = req.body;
 
-    const result = await pool.query(
+    // Check if status is changing
+    let statusChanged = false;
+    if (status) {
+      const currentOpp = await query(
+        'SELECT status FROM opportunities WHERE id = $1',
+        [id]
+      );
+      if (currentOpp.rows.length > 0 && currentOpp.rows[0].status !== status) {
+        statusChanged = true;
+      }
+    }
+
+    let updateFields = [];
+    let params = [];
+    let paramIndex = 1;
+
+    if (email !== undefined) {
+      updateFields.push(`email = $${paramIndex++}`);
+      params.push(email);
+    }
+    if (phone !== undefined) {
+      updateFields.push(`phone = $${paramIndex++}`);
+      params.push(phone);
+    }
+    if (mobile !== undefined) {
+      updateFields.push(`mobile = $${paramIndex++}`);
+      params.push(mobile);
+    }
+    if (contact_name !== undefined) {
+      updateFields.push(`contact_name = $${paramIndex++}`);
+      params.push(contact_name);
+    }
+    if (messages !== undefined) {
+      updateFields.push(`messages = $${paramIndex++}::text[]`);
+      params.push(messages);
+    }
+    if (status !== undefined) {
+      updateFields.push(`status = $${paramIndex++}`);
+      params.push(status);
+      if (statusChanged) {
+        updateFields.push(`status_updated_at = NOW()`);
+      }
+    }
+    if (property_id !== undefined) {
+      updateFields.push(`property_id = $${paramIndex++}`);
+      params.push(property_id);
+    }
+    if (metadata !== undefined) {
+      updateFields.push(`metadata = $${paramIndex++}`);
+      params.push(metadata ? JSON.stringify(metadata) : null);
+    }
+
+    updateFields.push(`updated_at = NOW()`);
+    params.push(id);
+
+    if (updateFields.length === 0) {
+      // No fields to update
+      const current = await query('SELECT * FROM opportunities WHERE id = $1', [id]);
+      if (current.rows.length === 0) {
+        return res.status(404).json({ error: 'Opportunity not found' });
+      }
+      return res.json({
+        success: true,
+        opportunity: current.rows[0]
+      });
+    }
+
+    const result = await query(
       `UPDATE opportunities 
-       SET email = COALESCE($1, email),
-           phone = COALESCE($2, phone),
-           mobile = COALESCE($3, mobile),
-           contact_name = COALESCE($4, contact_name),
-           messages = COALESCE($5, messages),
-           status = COALESCE($6, status),
-           property_id = COALESCE($7, property_id),
-           metadata = COALESCE($8, metadata),
-           updated_at = NOW()
-       WHERE id = $9
+       SET ${updateFields.join(', ')}
+       WHERE id = $${paramIndex}
        RETURNING *`,
-      [
-        email,
-        phone,
-        mobile,
-        contact_name,
-        messages,
-        status,
-        property_id,
-        metadata ? JSON.stringify(metadata) : null,
-        id
-      ]
+      params
     );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Opportunity not found' });
     }
 
+    // Auto-freeze check if status was updated
+    if (statusChanged && status) {
+      await checkAndAutoFreeze(id, status);
+    }
+
+    // Re-fetch to get updated data
+    const updated = await query('SELECT * FROM opportunities WHERE id = $1', [id]);
+
     res.json({
       success: true,
-      opportunity: result.rows[0]
+      opportunity: updated.rows[0]
     });
   } catch (error) {
     console.error('Error updating opportunity:', error);
@@ -584,7 +706,7 @@ app.post('/opportunities/:id/messages', async (req, res) => {
       return res.status(400).json({ error: 'Message is required' });
     }
 
-    const result = await pool.query(
+    const result = await query(
       `UPDATE opportunities 
        SET messages = array_append(messages, $1),
            updated_at = NOW()
@@ -612,7 +734,7 @@ app.delete('/opportunities/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const result = await pool.query(
+    const result = await query(
       'DELETE FROM opportunities WHERE id = $1 RETURNING *',
       [id]
     );
@@ -631,6 +753,122 @@ app.delete('/opportunities/:id', async (req, res) => {
   }
 });
 
+// ============================================
+// OPPORTUNITY NOTES API ENDPOINTS
+// ============================================
+
+// Get all notes for an opportunity
+app.get('/opportunities/:id/notes', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await query(
+      'SELECT * FROM opportunity_notes WHERE opportunity_id = $1 ORDER BY created_at DESC',
+      [id]
+    );
+
+    res.json({
+      success: true,
+      notes: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching notes:', error);
+    res.status(500).json({ error: 'Failed to fetch notes' });
+  }
+});
+
+// Create a new note for an opportunity
+app.post('/opportunities/:id/notes', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { note, created_by } = req.body;
+
+    if (!note || !note.trim()) {
+      return res.status(400).json({ error: 'Note is required' });
+    }
+
+    // Verify opportunity exists
+    const oppCheck = await query(
+      'SELECT id FROM opportunities WHERE id = $1',
+      [id]
+    );
+
+    if (oppCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Opportunity not found' });
+    }
+
+    const result = await query(
+      `INSERT INTO opportunity_notes (opportunity_id, note, created_by)
+       VALUES ($1, $2, $3)
+       RETURNING *`,
+      [id, note.trim(), created_by || null]
+    );
+
+    res.status(201).json({
+      success: true,
+      note: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error creating note:', error);
+    res.status(500).json({ error: 'Failed to create note' });
+  }
+});
+
+// Update a note
+app.put('/opportunities/:id/notes/:noteId', async (req, res) => {
+  try {
+    const { id, noteId } = req.params;
+    const { note } = req.body;
+
+    if (!note || !note.trim()) {
+      return res.status(400).json({ error: 'Note is required' });
+    }
+
+    const result = await query(
+      `UPDATE opportunity_notes 
+       SET note = $1, updated_at = NOW()
+       WHERE id = $2 AND opportunity_id = $3
+       RETURNING *`,
+      [note.trim(), noteId, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Note not found' });
+    }
+
+    res.json({
+      success: true,
+      note: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating note:', error);
+    res.status(500).json({ error: 'Failed to update note' });
+  }
+});
+
+// Delete a note
+app.delete('/opportunities/:id/notes/:noteId', async (req, res) => {
+  try {
+    const { id, noteId } = req.params;
+
+    const result = await query(
+      'DELETE FROM opportunity_notes WHERE id = $1 AND opportunity_id = $2 RETURNING *',
+      [noteId, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Note not found' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Note deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting note:', error);
+    res.status(500).json({ error: 'Failed to delete note' });
+  }
+});
+
 // Test endpoint to simulate opportunity from public website
 app.post('/opportunities/test/from-website', async (req, res) => {
   try {
@@ -646,7 +884,7 @@ app.post('/opportunities/test/from-website', async (req, res) => {
 
     const messages = initial_message ? [initial_message] : [];
 
-    const result = await pool.query(
+    const result = await query(
       `INSERT INTO opportunities (
         channel, property_id, email, phone, mobile, contact_name,
         messages, status, opportunity_type, received_at

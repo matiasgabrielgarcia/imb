@@ -139,7 +139,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, viewMode = 'grid'
                 fullWidth
                 onClick={() => handleContactClick('sale')}
               >
-                Consultar Venta
+                Contacto - Venta
               </Button>
             )}
             {hasAlquileres && (
@@ -150,7 +150,18 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, viewMode = 'grid'
                 fullWidth
                 onClick={() => handleContactClick('rental')}
               >
-                Consultar Alquiler
+                Contacto - Alquiler
+              </Button>
+            )}
+            {!hasVentas && !hasAlquileres && (
+              <Button 
+                variant="contained" 
+                color="primary" 
+                size="small"
+                fullWidth
+                onClick={() => handleContactClick('sale')}
+              >
+                Contacto
               </Button>
             )}
           </Stack>

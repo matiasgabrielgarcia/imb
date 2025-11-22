@@ -31,6 +31,7 @@ const PropertyCreate: React.FC = () => {
       rev: '',
       latitude: -34.6037,
       longitude: -58.3816,
+      dni: '',
     }
   });
 
@@ -54,6 +55,7 @@ const PropertyCreate: React.FC = () => {
         rev: data.rev,
         latitude: data.latitude,
         longitude: data.longitude,
+        dni: data.dni || undefined,
       });
       navigate('/propiedades');
     } catch (error) {
@@ -91,6 +93,14 @@ const PropertyCreate: React.FC = () => {
                   control={control}
                   label="Cliente"
                   required
+                />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <FormField
+                  name="dni"
+                  control={control}
+                  label="DNI (Opcional)"
+                  helperText="7-8 dígitos numéricos"
                 />
               </Grid>
               <Grid size={12}>

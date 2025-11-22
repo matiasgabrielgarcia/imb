@@ -15,19 +15,40 @@ import {
   Stack,
   Divider,
   Tooltip,
-  Link
+  Link,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  TextField,
+  DialogContentText,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction
 } from '@mui/material';
 import {
   Email as EmailIcon,
   Phone as PhoneIcon,
   Home as PropertyIcon,
   Message as MessageIcon,
-  AccessTime as TimeIcon
+  AccessTime as TimeIcon,
+  Edit as EditIcon,
+  Add as AddIcon,
+  Delete as DeleteIcon,
+  Note as NoteIcon,
+  Person as PersonIcon
 } from '@mui/icons-material';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { 
   opportunitiesAPI, 
   OpportunityDto, 
+  OpportunityNoteDto,
   OpportunityType,
   OpportunityStatus 
 } from '../services/api';
@@ -70,6 +91,15 @@ const OpportunitiesView: React.FC = () => {
   const [opportunities, setOpportunities] = useState<OpportunityDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [dateFilter, setDateFilter] = useState<number>(1); // Default 1 month
+  const [editingPhone, setEditingPhone] = useState<{ id: number; phone: string; mobile: string } | null>(null);
+  const [phoneDialogOpen, setPhoneDialogOpen] = useState(false);
+  const [phoneConfirmDialogOpen, setPhoneConfirmDialogOpen] = useState(false);
+  const [notesDialogOpen, setNotesDialogOpen] = useState(false);
+  const [selectedOpportunity, setSelectedOpportunity] = useState<OpportunityDto | null>(null);
+  const [notes, setNotes] = useState<OpportunityNoteDto[]>([]);
+  const [newNote, setNewNote] = useState('');
+  const [notesCounts, setNotesCounts] = useState<Record<number, number>>({});
   
   // Determine tab based on route
   const getTabFromPath = (path: string): number => {
@@ -88,15 +118,30 @@ const OpportunitiesView: React.FC = () => {
 
   useEffect(() => {
     loadOpportunities();
-  }, [tabValue]);
+  }, [tabValue, dateFilter]);
 
   const loadOpportunities = async () => {
     try {
       setLoading(true);
       setError(null);
       const type: OpportunityType = tabValue === 0 ? 'sale' : 'rental';
-      const data = await opportunitiesAPI.getAll(type);
+      const data = await opportunitiesAPI.getAll(type, undefined, dateFilter);
       setOpportunities(data.opportunities);
+
+      // Load notes counts for all opportunities
+      const counts: Record<number, number> = {};
+      await Promise.all(
+        data.opportunities.map(async (opp) => {
+          try {
+            const notesData = await opportunitiesAPI.getNotes(opp.id);
+            counts[opp.id] = notesData.notes?.length || 0;
+          } catch (err) {
+            console.error(`Error loading notes count for opportunity ${opp.id}:`, err);
+            counts[opp.id] = 0;
+          }
+        })
+      );
+      setNotesCounts(counts);
     } catch (err) {
       console.error('Error loading opportunities:', err);
       setError('No se pudieron cargar las oportunidades. Asegúrate de que el servidor wapp esté ejecutándose en el puerto 3005.');
@@ -145,8 +190,11 @@ const OpportunitiesView: React.FC = () => {
     }
   };
 
-  const formatTimeAgo = (dateString: string): string => {
-    const date = new Date(dateString);
+  const formatTimeAgo = (dateString: string | undefined, fallbackDateString?: string): string => {
+    const dateStr = dateString || fallbackDateString;
+    if (!dateStr) return 'Fecha no disponible';
+    
+    const date = new Date(dateStr);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
@@ -198,16 +246,24 @@ const OpportunitiesView: React.FC = () => {
             '&:active': {
               cursor: 'grabbing',
             },
+            // Highlight frozen cards
+            ...(opportunity.status === 'frozen' && {
+              border: '2px solid #f44336',
+              backgroundColor: '#ffebee',
+            }),
           }}
         >
           <CardContent>
             <Stack spacing={1.5}>
-              {/* Time ago */}
+              {/* Time ago - use status_updated_at if available, otherwise received_at */}
               <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Tooltip title={formatFullDateTime(opportunity.received_at)} arrow>
+                <Tooltip 
+                  title={formatFullDateTime(opportunity.status_updated_at || opportunity.received_at)} 
+                  arrow
+                >
                   <Chip
                     icon={<TimeIcon />}
-                    label={formatTimeAgo(opportunity.received_at)}
+                    label={formatTimeAgo(opportunity.status_updated_at, opportunity.received_at)}
                     size="small"
                     color="primary"
                     variant="outlined"
@@ -239,38 +295,61 @@ const OpportunitiesView: React.FC = () => {
                 </Box>
               )}
 
-              {/* Phone - Show phone or mobile (prefer phone) */}
+              {/* Phone - Show phone or mobile (prefer phone) with edit button */}
               {(opportunity.phone || opportunity.mobile) && (
                 <Box 
                   display="flex" 
                   alignItems="center" 
                   gap={1}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const phoneNumber = opportunity.phone || opportunity.mobile;
-                    if (phoneNumber) openWhatsApp(phoneNumber);
-                  }}
                   sx={{
-                    cursor: 'pointer',
-                    padding: '4px 8px',
+                    padding: '4px 0',
                     borderRadius: '4px',
-                    transition: 'background-color 0.2s',
-                    '&:hover': {
-                      backgroundColor: 'rgba(37, 211, 102, 0.1)',
-                    },
                   }}
                 >
-                  <PhoneIcon fontSize="small" color="success" />
-                  <Typography 
-                    variant="body2" 
-                    sx={{ 
-                      color: '#25d366',
-                      fontWeight: 500,
-                      textDecoration: 'underline',
+                  <Box
+                    display="flex"
+                    alignItems="center"
+                    gap={1}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const phoneNumber = opportunity.phone || opportunity.mobile;
+                      if (phoneNumber) openWhatsApp(phoneNumber);
+                    }}
+                    sx={{
+                      cursor: 'pointer',
+                      flex: 1,
+                      transition: 'background-color 0.2s',
+                      '&:hover': {
+                        backgroundColor: 'rgba(37, 211, 102, 0.1)',
+                      },
                     }}
                   >
-                    {opportunity.phone || opportunity.mobile}
-                  </Typography>
+                    <PhoneIcon fontSize="small" color="success" />
+                    <Typography 
+                      variant="body2" 
+                      sx={{ 
+                        color: '#25d366',
+                        fontWeight: 500,
+                        textDecoration: 'underline',
+                      }}
+                    >
+                      {opportunity.phone || opportunity.mobile}
+                    </Typography>
+                  </Box>
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingPhone({
+                        id: opportunity.id,
+                        phone: opportunity.phone || '',
+                        mobile: opportunity.mobile || '',
+                      });
+                      setPhoneDialogOpen(true);
+                    }}
+                  >
+                    <EditIcon fontSize="small" />
+                  </IconButton>
                 </Box>
               )}
 
@@ -286,7 +365,7 @@ const OpportunitiesView: React.FC = () => {
                   }}
                   sx={{
                     cursor: 'pointer',
-                    padding: '4px 8px',
+                    padding: '4px 0',
                     borderRadius: '4px',
                     transition: 'background-color 0.2s',
                     '&:hover': {
@@ -328,6 +407,44 @@ const OpportunitiesView: React.FC = () => {
                   </Tooltip>
                 </Box>
               )}
+
+              {/* Notes button */}
+              <Box 
+                display="flex" 
+                alignItems="center" 
+                gap={1}
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  setSelectedOpportunity(opportunity);
+                  setNotesDialogOpen(true);
+                  try {
+                    const notesData = await opportunitiesAPI.getNotes(opportunity.id);
+                    setNotes(notesData.notes || []);
+                    // Update count in state
+                    setNotesCounts((prev) => ({
+                      ...prev,
+                      [opportunity.id]: notesData.notes?.length || 0,
+                    }));
+                  } catch (err) {
+                    console.error('Error loading notes:', err);
+                    setNotes([]);
+                  }
+                }}
+                sx={{
+                  cursor: 'pointer',
+                  padding: '4px 0px 8px',
+                  borderRadius: '4px',
+                  transition: 'background-color 0.2s',
+                  '&:hover': {
+                    backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                  },
+                }}
+              >
+                <NoteIcon fontSize="small" color="action" />
+                <Typography variant="body2" color="text.secondary">
+                  Notas{(notesCounts[opportunity.id] || 0) > 0 ? ` (${notesCounts[opportunity.id]})` : ''}
+                </Typography>
+              </Box>
             </Stack>
           </CardContent>
         </Card>
@@ -443,6 +560,22 @@ const OpportunitiesView: React.FC = () => {
         </Tabs>
       </Box>
 
+      {/* Date filter */}
+      <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+        <FormControl size="small" sx={{ minWidth: 200 }}>
+          <InputLabel>Filtro de fecha</InputLabel>
+          <Select
+            value={dateFilter}
+            label="Filtro de fecha"
+            onChange={(e) => setDateFilter(e.target.value as number)}
+          >
+            <MenuItem value={1}>Último mes</MenuItem>
+            <MenuItem value={2}>Últimos 2 meses</MenuItem>
+            <MenuItem value={3}>Últimos 3 meses</MenuItem>
+          </Select>
+        </FormControl>
+      </Box>
+
       {loading ? (
         <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
           <CircularProgress />
@@ -461,6 +594,209 @@ const OpportunitiesView: React.FC = () => {
           </TabPanel>
         </>
       )}
+
+      {/* Phone Edit Dialog */}
+      <Dialog open={phoneDialogOpen} onClose={() => setPhoneDialogOpen(false)}>
+        <DialogTitle>Editar Teléfono</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            ¿Estás seguro de que deseas editar el teléfono? Esto afectará la comunicación con el cliente.
+          </DialogContentText>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Teléfono"
+            type="tel"
+            fullWidth
+            variant="outlined"
+            value={editingPhone?.phone || ''}
+            onChange={(e) => setEditingPhone({
+              ...editingPhone!,
+              phone: e.target.value,
+            })}
+            sx={{ mt: 2 }}
+          />
+          <TextField
+            margin="dense"
+            label="Móvil"
+            type="tel"
+            fullWidth
+            variant="outlined"
+            value={editingPhone?.mobile || ''}
+            onChange={(e) => setEditingPhone({
+              ...editingPhone!,
+              mobile: e.target.value,
+            })}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPhoneDialogOpen(false)}>Cancelar</Button>
+          <Button
+            onClick={() => {
+              // Close edit dialog and open confirm dialog
+              setPhoneDialogOpen(false);
+              setPhoneConfirmDialogOpen(true);
+            }}
+            variant="contained"
+          >
+            Guardar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Phone Confirm Dialog */}
+      <Dialog
+        open={phoneConfirmDialogOpen}
+        onClose={() => setPhoneConfirmDialogOpen(false)}
+      >
+        <DialogTitle>Confirmar Cambio de Teléfono</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            ¿Estás seguro de que deseas guardar estos cambios de teléfono? 
+            Esto afectará la comunicación con el cliente.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPhoneConfirmDialogOpen(false)}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={async () => {
+              if (!editingPhone) return;
+              
+              try {
+                await opportunitiesAPI.update(editingPhone.id, {
+                  phone: editingPhone.phone || undefined,
+                  mobile: editingPhone.mobile || undefined,
+                });
+                setPhoneConfirmDialogOpen(false);
+                setPhoneDialogOpen(false);
+                setEditingPhone(null);
+                loadOpportunities();
+              } catch (err) {
+                console.error('Error updating phone:', err);
+                setError('Error al actualizar el teléfono');
+                setPhoneConfirmDialogOpen(false);
+              }
+            }}
+            variant="contained"
+            color="primary"
+          >
+            Confirmar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Notes Dialog */}
+      <Dialog
+        open={notesDialogOpen}
+        onClose={() => {
+          setNotesDialogOpen(false);
+          setSelectedOpportunity(null);
+          setNotes([]);
+          setNewNote('');
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          Notas - {selectedOpportunity?.contact_name || `Oportunidad #${selectedOpportunity?.id}`}
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3, '&.MuiDialogContent-root': { paddingTop: '24px !important' } }}>
+          <Box sx={{ mb: 2 }}>
+            <TextField
+              fullWidth
+              multiline
+              rows={3}
+              label="Nueva nota"
+              value={newNote}
+              onChange={(e) => setNewNote(e.target.value)}
+              variant="outlined"
+            />
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={async () => {
+                if (!newNote.trim() || !selectedOpportunity) return;
+                
+                try {
+                  await opportunitiesAPI.createNote(selectedOpportunity.id, newNote.trim());
+                  const notesData = await opportunitiesAPI.getNotes(selectedOpportunity.id);
+                  setNotes(notesData.notes || []);
+                  setNewNote('');
+                  // Update notes count
+                  if (selectedOpportunity) {
+                    setNotesCounts((prev) => ({
+                      ...prev,
+                      [selectedOpportunity.id]: notesData.notes?.length || 0,
+                    }));
+                  }
+                } catch (err) {
+                  console.error('Error creating note:', err);
+                  setError('Error al crear la nota');
+                }
+              }}
+              sx={{ mt: 1 }}
+            >
+              Agregar nota
+            </Button>
+          </Box>
+          
+          <List>
+            {notes.map((note) => (
+              <ListItem key={note.id}>
+                <ListItemText
+                  primary={note.note}
+                  secondary={new Date(note.created_at).toLocaleString('es-AR')}
+                />
+                <ListItemSecondaryAction>
+                  <IconButton
+                    edge="end"
+                    onClick={async () => {
+                      if (!selectedOpportunity) return;
+                      const confirmed = window.confirm('¿Estás seguro de que deseas eliminar esta nota?');
+                      if (confirmed) {
+                        try {
+                          await opportunitiesAPI.deleteNote(selectedOpportunity.id, note.id);
+                          const notesData = await opportunitiesAPI.getNotes(selectedOpportunity.id);
+                          setNotes(notesData.notes || []);
+                          // Update notes count
+                          if (selectedOpportunity) {
+                            setNotesCounts((prev) => ({
+                              ...prev,
+                              [selectedOpportunity.id]: notesData.notes?.length || 0,
+                            }));
+                          }
+                        } catch (err) {
+                          console.error('Error deleting note:', err);
+                          setError('Error al eliminar la nota');
+                        }
+                      }
+                    }}
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+                </ListItemSecondaryAction>
+              </ListItem>
+            ))}
+            {notes.length === 0 && (
+              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
+                No hay notas aún. Agrega una nueva nota arriba.
+              </Typography>
+            )}
+          </List>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setNotesDialogOpen(false);
+            setSelectedOpportunity(null);
+            setNotes([]);
+            setNewNote('');
+          }}>
+            Cerrar
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

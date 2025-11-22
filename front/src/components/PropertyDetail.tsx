@@ -80,6 +80,11 @@ const PropertyDetail: React.FC = () => {
                 <Typography variant="body1" gutterBottom>
                   <strong>Cliente:</strong> {property.cliente}
                 </Typography>
+                {property.dni && (
+                  <Typography variant="body1" gutterBottom>
+                    <strong>DNI:</strong> {property.dni}
+                  </Typography>
+                )}
                 <Typography variant="body1" gutterBottom>
                   <strong>Fecha:</strong> {property.fecha}
                 </Typography>

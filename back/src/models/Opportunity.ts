@@ -12,6 +12,7 @@ export interface Opportunity {
   status: string;
   opportunity_type: 'sale' | 'rental';
   received_at: Date;
+  status_updated_at: Date;
   created_at: Date;
   updated_at: Date;
   metadata: any;

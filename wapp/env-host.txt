@@ -1,0 +1,68 @@
+# # # Database
+# # DB_HOST=localhost
+# # DB_PORT=5432
+# # DB_NAME=rental_management
+# # DB_USER=postgres
+# # DB_PASSWORD=imb2025
+
+# # # JWT
+# # JWT_SECRET=your_super_secret_jwt_key_here
+# # JWT_EXPIRES_IN=24h
+
+# # # Server
+# # PORT=3005
+# # NODE_ENV=development
+
+# # # Email (for email 2FA fallback)
+# # EMAIL_HOST=smtp.gmail.com
+# # EMAIL_PORT=587
+# # EMAIL_USER=your_email@gmail.com
+# # EMAIL_PASS=your_app_password
+
+# # # App
+# # APP_NAME=2FA Authentication App
+
+
+
+# DB_HOST=db.oqcmadftugczunnabjox.supabase.co
+# DB_PORT=5432
+# DB_NAME=postgres
+# DB_USER=postgres
+# DB_PASSWORD=imb2025
+
+# PORT=3002
+# NODE_ENV=development
+# WEBHOOK_VERIFY_TOKEN=any_random_string
+
+
+# =====================================================
+# BACKUP: Working LOCAL Environment Configuration
+# WhatsApp Service - Original setup before Supabase
+# =====================================================
+
+# Local PostgreSQL Database
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=rental_management
+DB_USER=postgres
+DB_PASSWORD=postgres
+
+# WhatsApp Business API Configuration
+WEBHOOK_VERIFY_TOKEN=your_local_verify_token
+WHATSAPP_TOKEN=your_whatsapp_business_token
+WHATSAPP_PHONE_NUMBER_ID=your_phone_number_id
+
+# Server Configuration
+PORT=3002
+NODE_ENV=development
+
+# CORS Origins
+CORS_ORIGIN=http://localhost:5173
+
+# =====================================================
+# To switch back to local database:
+# 1. Make sure PostgreSQL is running locally
+# 2. Copy this file content to wapp/.env
+# 3. Run: npm run dev
+# =====================================================
+

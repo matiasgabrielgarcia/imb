@@ -1,0 +1,20 @@
+# Copy ALL of this content to your back/.env file
+# Replace everything in back/.env with this:
+
+DB_HOST=db.oqcmadftugczunnabjox.supabase.co
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=YOUR_DATABASE_PASSWORD_HERE
+DB_NAME=postgres
+
+SUPABASE_URL=https://oqcmadftugczunnabjox.supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_vWx16_p9OxwKPo1X1ehKww_rVJsJbp9
+SUPABASE_SECRET_KEY=sb_secret_WQLDl32DvQxAPKQlsLapjw_wBVzao-l
+
+JWT_SECRET=imb_jwt_secret_key_2025_minimum_32_characters_long
+
+PORT=3001
+NODE_ENV=development
+
+CONNECTION_STRING=postgresql://postgres:YOUR_DATABASE_PASSWORD_HERE@db.oqcmadftugczunnabjox.supabase.co:5432/postgres
+

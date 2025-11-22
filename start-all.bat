@@ -18,6 +18,6 @@ echo All services started in separate windows!
 echo Backend: http://localhost:3001
 echo Frontend (Backoffice): http://localhost:5173
 echo Public Site: http://localhost:5174
-echo WhatsApp: http://localhost:3002
+echo WhatsApp: http://localhost:3005
 pause
 
