@@ -1,6 +1,9 @@
 import axios from 'axios';
 
-const API_BASE_URL = '/api';// import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+// Use environment variable if set (for pointing to hosted backend), 
+// otherwise use proxy path for local development
+// Note: VITE_API_URL should be the full backend URL including /api if needed
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -196,7 +199,8 @@ export const rentalsAPI = {
 };
 
 // Notifications API (connects to wapp service)
-const WAPP_API_URL = import.meta.env.VITE_WHATSAPP_SERVICE_URL || 'http://localhost:3005';
+// Use environment variable in production, or proxy path in development
+const WAPP_API_URL = import.meta.env.VITE_WHATSAPP_SERVICE_URL || '/wapp';
 
 // Helper to get auth headers
 function getAuthHeaders() {

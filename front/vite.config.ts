@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const VITE_API_URL = process.env.VITE_API_URL || 'http://localhost:3001/api';
+const VITE_WHATSAPP_SERVICE_URL = process.env.VITE_WHATSAPP_SERVICE_URL || 'http://localhost:3005';
 
 export default defineConfig({
   plugins: [react()],
@@ -17,6 +18,11 @@ export default defineConfig({
         target: VITE_API_URL,
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, '')
+      },
+      '/wapp': {
+        target: VITE_WHATSAPP_SERVICE_URL,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/wapp/, '')
       }
     }
   }

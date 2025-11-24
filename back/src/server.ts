@@ -20,10 +20,25 @@ const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(helmet());
+// CORS configuration - read from environment variables
+// CORS_ORIGINS should be a comma-separated list of allowed origins
+// Example: CORS_ORIGINS=http://localhost:3000,http://localhost:5173,https://yourdomain.com
+const allowedOrigins = process.env.CORS_ORIGINS 
+  ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
+  : process.env.NODE_ENV === 'production' 
+    ? [] // In production, require CORS_ORIGINS to be set
+    : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174']; // Default for development
+
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://your-frontend-domain.com', 'https://your-public-site-domain.com'] 
-    : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174'],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 app.use(morgan('combined'));
