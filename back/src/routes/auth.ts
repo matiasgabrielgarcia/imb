@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import { UserModel } from '../models/User';
 import { TwoFactorService } from '../services/twoFactorService';
 // import { EmailService } from '../services/emailService';
@@ -57,12 +57,19 @@ router.post('/login', async (req: Request, res: Response) => {
       });
     }
     // Generate JWT token
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      console.error("JWT_SECRET environment variable is not set!");
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
+    
+    const signOptions = {
+      expiresIn: process.env.JWT_EXPIRES_IN || '1d'
+    } as SignOptions;
     const token = jwt.sign(
       { userId: user.id, username: user.username },
-      'your_super_secret_jwt_key_here',
-      // process.env.JWT_SECRET as string,
-      // { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
-      { expiresIn: '1d' }
+      jwtSecret,
+      signOptions
     );
 
     res.json({
@@ -76,9 +83,13 @@ router.post('/login', async (req: Request, res: Response) => {
       }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Login error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error stack:', error?.stack);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: process.env.NODE_ENV === 'development' ? error?.message : undefined
+    });
   }
 });
 
@@ -106,20 +117,20 @@ router.post('/verify-2fa', async (req: Request, res: Response) => {
     if (isValidToken) {
       // Generate JWT token
       console.log(" Generate JWT token")
-      // console.log("JWT_SECRET:", process.env.JWT_SECRET);
-      // console.log("JWT_SECRET type:", typeof process.env.JWT_SECRET);
-      // console.log("JWT_SECRET length:", process.env.JWT_SECRET?.length);
       
-      // if (!process.env.JWT_SECRET) {
-      //   console.error("JWT_SECRET environment variable is not set!");
-      //   return res.status(500).json({ error: 'Server configuration error' });
-      // }
+      const jwtSecret = process.env.JWT_SECRET;
+      if (!jwtSecret) {
+        console.error("JWT_SECRET environment variable is not set!");
+        return res.status(500).json({ error: 'Server configuration error' });
+      }
       
+      const signOptions = {
+        expiresIn: process.env.JWT_EXPIRES_IN || '1d'
+      } as SignOptions;
       const jwtToken = jwt.sign(
         { userId: user.id, username: user.username },
-        'your_super_secret_jwt_key_here',
-        // { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
-        { expiresIn: '1d' }
+        jwtSecret,
+        signOptions
       );
 
       console.log(" JWT token OK  " , jwtToken)
@@ -143,16 +154,19 @@ router.post('/verify-2fa', async (req: Request, res: Response) => {
 
     console.log("wwwwwwwwwwwwwooow2")
     if (isValidBackupCode) {
-      if (!process.env.JWT_SECRET) {
+      const jwtSecret = process.env.JWT_SECRET;
+      if (!jwtSecret) {
         console.error("JWT_SECRET environment variable is not set!");
         return res.status(500).json({ error: 'Server configuration error' });
       }
       
+      const signOptions = {
+        expiresIn: process.env.JWT_EXPIRES_IN || '1d'
+      } as SignOptions;
       const jwtToken = jwt.sign(
         { userId: user.id, username: user.username },
-        process.env.JWT_SECRET as string,
-        // { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
-        { expiresIn: '1d' }
+        jwtSecret,
+        signOptions
       );
 
       return res.json({
@@ -257,11 +271,19 @@ router.post('/verify-email-code', async (req: Request, res: Response) => {
     // In production, verify the code from your temporary storage
     // For demo purposes, we'll accept any 6-digit code
     if (code.length === 6 && /^\d+$/.test(code)) {
+      const jwtSecret = process.env.JWT_SECRET;
+      if (!jwtSecret) {
+        console.error("JWT_SECRET environment variable is not set!");
+        return res.status(500).json({ error: 'Server configuration error' });
+      }
+      
+      const signOptions = {
+        expiresIn: process.env.JWT_EXPIRES_IN || '1d'
+      } as SignOptions;
       const jwtToken = jwt.sign(
         { userId: user.id, username: user.username },
-        process.env.JWT_SECRET as string,
-        // { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
-        { expiresIn: '1d' }
+        jwtSecret,
+        signOptions
       );
 
       return res.json({

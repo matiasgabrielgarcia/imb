@@ -196,7 +196,16 @@ export const rentalsAPI = {
 };
 
 // Notifications API (connects to wapp service)
-const WAPP_API_URL = 'http://localhost:3005';
+const WAPP_API_URL = import.meta.env.VITE_WHATSAPP_SERVICE_URL || 'http://localhost:3005';
+
+// Helper to get auth headers
+function getAuthHeaders() {
+  const token = localStorage.getItem('token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+  };
+}
 
 export interface NotificationDto {
   messageFrom: string;
@@ -206,6 +215,8 @@ export interface NotificationDto {
   messageId?: string;
   category: 'BUYER' | 'SELLER' | 'TENANT' | 'LANDLORD' | 'UNCATEGORIZED';
   isOld: boolean;
+  userId?: number;
+  sentByUserId?: number;
 }
 
 export interface NotificationsSummary {
@@ -224,7 +235,96 @@ export interface NotificationsResponse {
 
 export const notificationsAPI = {
   getAll: (): Promise<NotificationsResponse> => 
-    fetch(`${WAPP_API_URL}/notifications`).then(r => r.json()),
+    fetch(`${WAPP_API_URL}/notifications`, {
+      headers: getAuthHeaders()
+    }).then(async (r) => {
+      if (!r.ok) {
+        const error = await r.json().catch(() => ({ error: 'Failed to fetch notifications' }));
+        throw new Error(error.error || `HTTP ${r.status}: ${r.statusText}`);
+      }
+      return r.json();
+    }),
+};
+
+// Chat API
+export interface ChatMessage {
+  id: number;
+  messageFrom: string;
+  message: string;
+  datetime: string;
+  messageType?: string;
+  sentByUserId?: number;
+  userId?: number;
+}
+
+export interface Conversation {
+  phoneNumber: string;
+  lastMessageAt: string;
+  messageCount: number;
+  lastMessage: string;
+  category?: string;
+  userId?: number;
+  messages: ChatMessage[];
+}
+
+export interface ConversationsResponse {
+  total: number;
+  conversations: Conversation[];
+}
+
+export interface ConversationResponse {
+  phoneNumber: string;
+  total: number;
+  messages: ChatMessage[];
+}
+
+export const chatAPI = {
+  getConversations: (): Promise<ConversationsResponse> =>
+    fetch(`${WAPP_API_URL}/conversations`, {
+      headers: getAuthHeaders()
+    }).then(async (r) => {
+      if (!r.ok) {
+        const error = await r.json().catch(() => ({ error: 'Failed to fetch conversations' }));
+        throw new Error(error.error || `HTTP ${r.status}: ${r.statusText}`);
+      }
+      return r.json();
+    }),
+
+  getConversation: (phoneNumber: string): Promise<ConversationResponse> =>
+    fetch(`${WAPP_API_URL}/conversations/${encodeURIComponent(phoneNumber)}`, {
+      headers: getAuthHeaders()
+    }).then(async (r) => {
+      if (!r.ok) {
+        const error = await r.json().catch(() => ({ error: 'Failed to fetch conversation' }));
+        throw new Error(error.error || `HTTP ${r.status}: ${r.statusText}`);
+      }
+      return r.json();
+    }),
+
+  sendMessage: (phoneNumber: string, message: string): Promise<{ success: boolean; messageId?: string }> =>
+    fetch(`${WAPP_API_URL}/send-message`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ phoneNumber, message })
+    }).then(async (r) => {
+      if (!r.ok) {
+        const error = await r.json().catch(() => ({ error: 'Failed to send message' }));
+        throw new Error(error.error || `HTTP ${r.status}: ${r.statusText}`);
+      }
+      return r.json();
+    }),
+
+  assignConversation: (phoneNumber: string): Promise<{ success: boolean; assignedCount: number }> =>
+    fetch(`${WAPP_API_URL}/conversations/${encodeURIComponent(phoneNumber)}/assign`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    }).then(async (r) => {
+      if (!r.ok) {
+        const error = await r.json().catch(() => ({ error: 'Failed to assign conversation' }));
+        throw new Error(error.error || `HTTP ${r.status}: ${r.statusText}`);
+      }
+      return r.json();
+    }),
 };
 
 // Opportunities API (connects to wapp service)
@@ -309,63 +409,130 @@ export const opportunitiesAPI = {
     if (months) params.append('months', months.toString());
     const queryString = params.toString();
     const url = `${WAPP_API_URL}/opportunities${queryString ? `?${queryString}` : ''}`;
-    return fetch(url).then(r => r.json());
+    return fetch(url, {
+      headers: getAuthHeaders()
+    }).then(async (r) => {
+      if (!r.ok) {
+        const error = await r.json().catch(() => ({ error: 'Failed to fetch opportunities' }));
+        throw new Error(error.error || `HTTP ${r.status}: ${r.statusText}`);
+      }
+      return r.json();
+    });
   },
   
   get: (id: number): Promise<OpportunityDto> =>
-    fetch(`${WAPP_API_URL}/opportunities/${id}`).then(r => r.json()),
+    fetch(`${WAPP_API_URL}/opportunities/${id}`, {
+      headers: getAuthHeaders()
+    }).then(async (r) => {
+      if (!r.ok) {
+        const error = await r.json().catch(() => ({ error: 'Failed to fetch opportunity' }));
+        throw new Error(error.error || `HTTP ${r.status}: ${r.statusText}`);
+      }
+      return r.json();
+    }),
   
   create: (data: CreateOpportunityRequest): Promise<{ success: boolean; opportunity: OpportunityDto }> =>
     fetch(`${WAPP_API_URL}/opportunities`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(data),
-    }).then(r => r.json()),
+    }).then(async (r) => {
+      if (!r.ok) {
+        const error = await r.json().catch(() => ({ error: 'Failed to create opportunity' }));
+        throw new Error(error.error || `HTTP ${r.status}: ${r.statusText}`);
+      }
+      return r.json();
+    }),
   
   updateStatus: (id: number, status: OpportunityStatus): Promise<{ success: boolean; opportunity: OpportunityDto }> =>
     fetch(`${WAPP_API_URL}/opportunities/${id}/status`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({ status }),
-    }).then(r => r.json()),
+    }).then(async (r) => {
+      if (!r.ok) {
+        const error = await r.json().catch(() => ({ error: 'Failed to update opportunity status' }));
+        throw new Error(error.error || `HTTP ${r.status}: ${r.statusText}`);
+      }
+      return r.json();
+    }),
   
   update: (id: number, data: Partial<OpportunityDto>): Promise<{ success: boolean; opportunity: OpportunityDto }> =>
     fetch(`${WAPP_API_URL}/opportunities/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(data),
-    }).then(r => r.json()),
+    }).then(async (r) => {
+      if (!r.ok) {
+        const error = await r.json().catch(() => ({ error: 'Failed to update opportunity' }));
+        throw new Error(error.error || `HTTP ${r.status}: ${r.statusText}`);
+      }
+      return r.json();
+    }),
   
   addMessage: (id: number, message: string): Promise<{ success: boolean; opportunity: OpportunityDto }> =>
     fetch(`${WAPP_API_URL}/opportunities/${id}/messages`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({ message }),
-    }).then(r => r.json()),
+    }).then(async (r) => {
+      if (!r.ok) {
+        const error = await r.json().catch(() => ({ error: 'Failed to add message' }));
+        throw new Error(error.error || `HTTP ${r.status}: ${r.statusText}`);
+      }
+      return r.json();
+    }),
   
   remove: (id: number): Promise<{ success: boolean; message: string }> =>
     fetch(`${WAPP_API_URL}/opportunities/${id}`, {
       method: 'DELETE',
-    }).then(r => r.json()),
+      headers: getAuthHeaders()
+    }).then(async (r) => {
+      if (!r.ok) {
+        const error = await r.json().catch(() => ({ error: 'Failed to delete opportunity' }));
+        throw new Error(error.error || `HTTP ${r.status}: ${r.statusText}`);
+      }
+      return r.json();
+    }),
   
   // Test endpoint
   createTestFromWebsite: (data: CreateOpportunityRequest & { initial_message?: string }): Promise<{ success: boolean; opportunity: OpportunityDto }> =>
     fetch(`${WAPP_API_URL}/opportunities/test/from-website`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(data),
-    }).then(r => r.json()),
+    }).then(async (r) => {
+      if (!r.ok) {
+        const error = await r.json().catch(() => ({ error: 'Failed to create test opportunity' }));
+        throw new Error(error.error || `HTTP ${r.status}: ${r.statusText}`);
+      }
+      return r.json();
+    }),
 
   // Notes endpoints
   getNotes: (id: number): Promise<{ success: boolean; notes: OpportunityNoteDto[] }> =>
-    fetch(`${WAPP_API_URL}/opportunities/${id}/notes`).then(r => r.json()),
+    fetch(`${WAPP_API_URL}/opportunities/${id}/notes`, {
+      headers: getAuthHeaders()
+    }).then(async (r) => {
+      if (!r.ok) {
+        const error = await r.json().catch(() => ({ error: 'Failed to fetch notes' }));
+        throw new Error(error.error || `HTTP ${r.status}: ${r.statusText}`);
+      }
+      return r.json();
+    }),
 
   createNote: (id: number, note: string, created_by?: string): Promise<{ success: boolean; note: OpportunityNoteDto }> =>
     fetch(`${WAPP_API_URL}/opportunities/${id}/notes`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({ note, created_by }),
-    }).then(r => r.json()),
+    }).then(async (r) => {
+      if (!r.ok) {
+        const error = await r.json().catch(() => ({ error: 'Failed to create note' }));
+        throw new Error(error.error || `HTTP ${r.status}: ${r.statusText}`);
+      }
+      return r.json();
+    }),
 
   updateNote: (id: number, noteId: number, note: string): Promise<{ success: boolean; note: OpportunityNoteDto }> =>
     fetch(`${WAPP_API_URL}/opportunities/${id}/notes/${noteId}`, {

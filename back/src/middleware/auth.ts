@@ -20,7 +20,13 @@ export const authenticateToken = async (req: AuthRequest, res: Response, next: N
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_super_secret_jwt_key_here') as any;
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      console.error("JWT_SECRET environment variable is not set!");
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
+    
+    const decoded = jwt.verify(token, jwtSecret) as any;
     const user = await UserModel.findById(decoded.userId);
     
     if (!user) {

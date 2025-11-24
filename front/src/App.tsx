@@ -6,6 +6,7 @@ import DashboardView from './views/DashboardView';
 import PropertiesView from './views/PropertiesView';
 import NotificationsView from './views/NotificationsView';
 import OpportunitiesView from './views/OpportunitiesView';
+import ChatView from './views/ChatView';
 import PropertyDetail from './components/PropertyDetail';
 import SaleDetail from './components/SaleDetail';
 import RentalDetail from './components/RentalDetail';
@@ -133,6 +134,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <NotificationsView />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/chat" 
+                element={
+                  <ProtectedRoute>
+                    <ChatView />
                   </ProtectedRoute>
                 } 
               />

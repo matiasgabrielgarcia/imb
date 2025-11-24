@@ -1,10 +1,11 @@
+// Load environment variables from .env file FIRST, before any other requires
+require('dotenv').config();
+
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const { query } = require('./db-connection');
-
-// Load environment variables from .env file
-require('dotenv').config();
+const { authenticateToken, buildUserFilter, canSeeAllMessages } = require('./auth-middleware');
 
 const app = express();
 
@@ -132,9 +133,10 @@ app.post('/webhook/test', async (req, res) => {
   }
 });
 
-// Get all saved messages
-app.get('/messages', async (req, res) => {
+// Get all saved messages (user-filtered)
+app.get('/messages', authenticateToken, async (req, res) => {
   try {
+    const userFilter = buildUserFilter(req.user);
     const result = await query(
       `SELECT 
         id,
@@ -144,9 +146,13 @@ app.get('/messages', async (req, res) => {
         message_type as "messageType",
         message_id as "messageId",
         category,
+        user_id as "userId",
+        sent_by_user_id as "sentByUserId",
         created_at as "createdAt"
       FROM whatsapp_messages
-      ORDER BY datetime DESC`
+      WHERE ${userFilter.condition}
+      ORDER BY datetime DESC`,
+      userFilter.params
     );
 
     res.status(200).json({
@@ -162,9 +168,10 @@ app.get('/messages', async (req, res) => {
   }
 });
 
-// Get notifications summary (categorized messages)
-app.get('/notifications', async (req, res) => {
+// Get notifications summary (categorized messages, user-filtered)
+app.get('/notifications', authenticateToken, async (req, res) => {
   try {
+    const userFilter = buildUserFilter(req.user);
     const result = await query(
       `SELECT 
         id,
@@ -174,9 +181,13 @@ app.get('/notifications', async (req, res) => {
         message_type as "messageType",
         message_id as "messageId",
         category,
+        user_id as "userId",
+        sent_by_user_id as "sentByUserId",
         created_at as "createdAt"
       FROM whatsapp_messages
-      ORDER BY datetime DESC`
+      WHERE ${userFilter.condition}
+      ORDER BY datetime DESC`,
+      userFilter.params
     );
 
     const messages = result.rows;
@@ -304,8 +315,8 @@ async function saveMessage(messageData) {
   try {
     await query(
       `INSERT INTO whatsapp_messages (
-        message_from, message, datetime, message_type, message_id, category
-      ) VALUES ($1, $2, $3, $4, $5, $6)
+        message_from, message, datetime, message_type, message_id, category, user_id, sent_by_user_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       ON CONFLICT (message_id) DO NOTHING`,
       [
         messageData.messageFrom,
@@ -313,7 +324,9 @@ async function saveMessage(messageData) {
         messageData.datetime,
         messageData.messageType || 'text',
         messageData.messageId || null,
-        messageData.category || 'UNCATEGORIZED'
+        messageData.category || 'UNCATEGORIZED',
+        messageData.userId || null,
+        messageData.sentByUserId || null
       ]
     );
     console.log(`Message saved to database from: ${messageData.messageFrom}`);
@@ -333,13 +346,21 @@ async function saveMessage(messageData) {
 // ============================================
 
 // Get all opportunities
-app.get('/opportunities', async (req, res) => {
+app.get('/opportunities', authenticateToken, async (req, res) => {
   try {
     const { type, status, months } = req.query;
-    
+    const userFilter = buildUserFilter(req.user);
+
     let sqlQuery = 'SELECT * FROM opportunities WHERE 1=1';
     const params = [];
     let paramIndex = 1;
+
+    // Add user filtering (unless admin/backoffice)
+    if (!canSeeAllMessages(req.user)) {
+      sqlQuery += ` AND (user_id = $${paramIndex} OR user_id IS NULL)`;
+      params.push(req.user.id);
+      paramIndex++;
+    }
 
     if (type) {
       sqlQuery += ` AND opportunity_type = $${paramIndex}`;
@@ -403,14 +424,21 @@ app.get('/opportunities', async (req, res) => {
   }
 });
 
-// Get a single opportunity
-app.get('/opportunities/:id', async (req, res) => {
+// Get a single opportunity (user-filtered)
+app.get('/opportunities/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await query(
-      'SELECT * FROM opportunities WHERE id = $1',
-      [id]
-    );
+    
+    let sqlQuery = 'SELECT * FROM opportunities WHERE id = $1';
+    const params = [id];
+    
+    // Add user filtering (unless admin/backoffice)
+    if (!canSeeAllMessages(req.user)) {
+      sqlQuery += ' AND (user_id = $2 OR user_id IS NULL)';
+      params.push(req.user.id);
+    }
+    
+    const result = await query(sqlQuery, params);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Opportunity not found' });
@@ -911,6 +939,238 @@ app.post('/opportunities/test/from-website', async (req, res) => {
   } catch (error) {
     console.error('Error creating test opportunity:', error);
     res.status(500).json({ error: 'Failed to create test opportunity' });
+  }
+});
+
+// =====================================================
+// CHAT ENDPOINTS - User-based messaging
+// =====================================================
+
+// Get conversations (grouped by phone number, user-filtered)
+app.get('/conversations', authenticateToken, async (req, res) => {
+  try {
+    const userFilter = buildUserFilter(req.user);
+    
+    // Get all messages for this user, grouped by phone number
+    const result = await query(
+      `SELECT 
+        message_from as "phoneNumber",
+        MAX(datetime) as "lastMessageAt",
+        COUNT(*) as "messageCount",
+        MAX(message) as "lastMessage",
+        MAX(category) as "category",
+        MAX(user_id) as "userId"
+      FROM whatsapp_messages
+      WHERE ${userFilter.condition}
+      GROUP BY message_from
+      ORDER BY MAX(datetime) DESC`,
+      userFilter.params
+    );
+
+    // Get full conversation for each phone number
+    const conversations = await Promise.all(
+      result.rows.map(async (conv) => {
+        const messagesResult = await query(
+          `SELECT 
+            id,
+            message_from as "messageFrom",
+            message,
+            datetime,
+            message_type as "messageType",
+            sent_by_user_id as "sentByUserId",
+            user_id as "userId"
+          FROM whatsapp_messages
+          WHERE message_from = $1 AND ${userFilter.condition}
+          ORDER BY datetime ASC`,
+          [conv.phoneNumber, ...userFilter.params]
+        );
+
+        return {
+          phoneNumber: conv.phoneNumber,
+          lastMessageAt: conv.lastMessageAt,
+          messageCount: parseInt(conv.messageCount),
+          lastMessage: conv.lastMessage,
+          category: conv.category,
+          userId: conv.userId,
+          messages: messagesResult.rows
+        };
+      })
+    );
+
+    res.json({
+      total: conversations.length,
+      conversations
+    });
+  } catch (error) {
+    console.error('Error getting conversations:', error);
+    res.status(500).json({
+      error: 'Failed to get conversations',
+      details: error.message
+    });
+  }
+});
+
+// Get messages for a specific conversation
+app.get('/conversations/:phoneNumber', authenticateToken, async (req, res) => {
+  try {
+    const { phoneNumber } = req.params;
+    const userFilter = buildUserFilter(req.user);
+
+    const result = await query(
+      `SELECT 
+        id,
+        message_from as "messageFrom",
+        message,
+        datetime,
+        message_type as "messageType",
+        sent_by_user_id as "sentByUserId",
+        user_id as "userId",
+        category
+      FROM whatsapp_messages
+      WHERE message_from = $1 AND ${userFilter.condition}
+      ORDER BY datetime ASC`,
+      [phoneNumber, ...userFilter.params]
+    );
+
+    res.json({
+      phoneNumber,
+      total: result.rows.length,
+      messages: result.rows
+    });
+  } catch (error) {
+    console.error('Error getting conversation:', error);
+    res.status(500).json({
+      error: 'Failed to get conversation',
+      details: error.message
+    });
+  }
+});
+
+// Send message via WhatsApp API
+app.post('/send-message', authenticateToken, async (req, res) => {
+  try {
+    const { phoneNumber, message } = req.body;
+
+    if (!phoneNumber || !message) {
+      return res.status(400).json({
+        error: 'phoneNumber and message are required'
+      });
+    }
+
+    // Get WhatsApp API credentials
+    const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
+    const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+    if (!WHATSAPP_TOKEN || !WHATSAPP_PHONE_NUMBER_ID) {
+      return res.status(500).json({
+        error: 'WhatsApp API credentials not configured'
+      });
+    }
+
+    // Format phone number (remove +, spaces, etc.)
+    const cleanPhone = phoneNumber.replace(/[\s\-\(\)\+]/g, '');
+
+    // Send message via WhatsApp Cloud API
+    const response = await fetch(
+      `https://graph.facebook.com/v18.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${WHATSAPP_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          to: cleanPhone,
+          type: 'text',
+          text: {
+            body: message
+          }
+        })
+      }
+    );
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      console.error('WhatsApp API error:', responseData);
+      return res.status(response.status).json({
+        error: 'Failed to send message via WhatsApp API',
+        details: responseData
+      });
+    }
+
+    // Save sent message to database
+    const messageData = {
+      messageFrom: cleanPhone,
+      message: message,
+      datetime: new Date().toISOString(),
+      messageType: 'text',
+      messageId: responseData.messages?.[0]?.id || null,
+      category: 'UNCATEGORIZED',
+      userId: req.user.id, // Assign conversation to this user
+      sentByUserId: req.user.id // Track who sent it
+    };
+
+    await saveMessage(messageData);
+
+    res.json({
+      success: true,
+      message: 'Message sent successfully',
+      messageId: responseData.messages?.[0]?.id,
+      data: messageData
+    });
+  } catch (error) {
+    console.error('Error sending message:', error);
+    res.status(500).json({
+      error: 'Failed to send message',
+      details: error.message
+    });
+  }
+});
+
+// Assign conversation to user (when user starts chatting)
+app.post('/conversations/:phoneNumber/assign', authenticateToken, async (req, res) => {
+  try {
+    const { phoneNumber } = req.params;
+    const userFilter = buildUserFilter(req.user);
+
+    // Clean phone number for matching (remove +, spaces, etc.)
+    const cleanPhone = phoneNumber.replace(/[\s\-\(\)\+]/g, '');
+
+    // Update all messages from this phone number to be assigned to this user
+    // Only update messages that are not already assigned to another user
+    const messagesResult = await query(
+      `UPDATE whatsapp_messages
+       SET user_id = $1
+       WHERE message_from = $2 AND (user_id IS NULL OR user_id = $1)
+       RETURNING id`,
+      [req.user.id, cleanPhone]
+    );
+
+    // Also assign related opportunities to this user
+    // Match by phone or mobile number
+    const opportunitiesResult = await query(
+      `UPDATE opportunities
+       SET user_id = $1, updated_at = NOW()
+       WHERE (phone = $2 OR mobile = $2 OR phone = $3 OR mobile = $3)
+         AND (user_id IS NULL OR user_id = $1)
+       RETURNING id`,
+      [req.user.id, cleanPhone, phoneNumber]
+    );
+
+    res.json({
+      success: true,
+      message: 'Conversation and related opportunities assigned to user',
+      messagesAssigned: messagesResult.rows.length,
+      opportunitiesAssigned: opportunitiesResult.rows.length
+    });
+  } catch (error) {
+    console.error('Error assigning conversation:', error);
+    res.status(500).json({
+      error: 'Failed to assign conversation',
+      details: error.message
+    });
   }
 });
 

@@ -29,3 +29,4 @@ COMMENT ON COLUMN whatsapp_messages.message_id IS 'Unique WhatsApp message ID';
 COMMENT ON COLUMN whatsapp_messages.category IS 'Message category (BUYER, SELLER, TENANT, LANDLORD, UNCATEGORIZED)';
 
 
+

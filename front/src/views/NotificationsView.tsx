@@ -46,11 +46,9 @@ const NotificationsView: React.FC = () => {
     }
   };
 
-  const openWhatsApp = (phoneNumber: string) => {
-    // Clean phone number (remove spaces, dashes, parentheses, plus signs)
-    const cleanPhone = phoneNumber.replace(/[\s\-\(\)\+]/g, '');
-    // Open WhatsApp Web in a new tab
-    window.open(`https://web.whatsapp.com/send?phone=${cleanPhone}`, '_blank');
+  const openChat = (phoneNumber: string) => {
+    // Navigate to chat view with the phone number
+    window.location.href = `/chat?phone=${encodeURIComponent(phoneNumber)}`;
   };
 
   const getCategoryIcon = (category: string) => {
@@ -208,7 +206,7 @@ const NotificationsView: React.FC = () => {
                                 De:
                               </Typography>
                               <Box
-                                onClick={() => openWhatsApp(notification.messageFrom)}
+                                onClick={() => openChat(notification.messageFrom)}
                                 sx={{
                                   cursor: 'pointer',
                                   display: 'inline-flex',
