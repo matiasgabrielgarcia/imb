@@ -1,0 +1,49 @@
+# =====================================================
+# BACKUP: Supabase HOSTING Environment Configuration
+# WhatsApp Service - Cloud database version
+# =====================================================
+
+# Supabase Database Connection
+DB_HOST=db.oqcmadftugczunnabjox.supabase.co
+DB_PORT=5432
+DB_NAME=postgres
+DB_USER=postgres
+DB_PASSWORD=YOUR_DATABASE_PASSWORD_HERE
+
+# Supabase API Configuration
+SUPABASE_URL=https://oqcmadftugczunnabjox.supabase.co
+SUPABASE_SECRET_KEY=sb_secret_WQLDl32DvQxAPKQlsLapjw_wBVzao-l
+
+# WhatsApp Business API Configuration
+WEBHOOK_VERIFY_TOKEN=your_hosting_verify_token
+WHATSAPP_TOKEN=your_whatsapp_business_token
+WHATSAPP_PHONE_NUMBER_ID=your_phone_number_id
+
+# Server Configuration
+PORT=3005
+NODE_ENV=development
+
+# CORS Origins
+CORS_ORIGIN=http://localhost:5173
+
+# JWT Configuration (if needed for WhatsApp service)
+JWT_SECRET=imb_jwt_secret_key_2025_minimum_32_characters_long
+JWT_EXPIRES_IN=24h
+
+# Email Configuration (for 2FA fallback - optional)
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=your_email@gmail.com
+EMAIL_PASS=your_app_password
+
+# App
+APP_NAME=2FA Authentication App
+
+# =====================================================
+# To switch to hosting/Supabase:
+# 1. Copy this file content to wapp/.env
+# 2. Update WhatsApp API credentials above
+# 3. Make sure Supabase project is active
+# 4. Run: npm run dev
+# =====================================================
+

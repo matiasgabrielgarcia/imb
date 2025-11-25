@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Box,
@@ -33,38 +33,87 @@ const ChatView: React.FC = () => {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const phoneParamHandledRef = useRef<string | null>(null);
 
   useEffect(() => {
     loadConversations();
   }, []);
 
+  const loadMessages = useCallback(async (phoneNumber: string) => {
+    try {
+      setError(null);
+      const data = await chatAPI.getConversation(phoneNumber);
+      setMessages(data.messages || []);
+      
+      // Assign conversation to current user if not already assigned
+      if (data.messages && data.messages.length > 0 && !data.messages[0].userId) {
+        await chatAPI.assignConversation(phoneNumber);
+        loadConversations(); // Reload to update assignment
+      }
+    } catch (err: any) {
+      // If conversation doesn't exist yet, that's okay - set empty messages
+      console.log('No existing messages for this phone number:', err);
+      setMessages([]);
+      // Don't set error - allow user to start a new conversation
+    }
+  }, []);
+
   // Handle phone number from URL parameter
   useEffect(() => {
     const phoneParam = searchParams.get('phone');
-    if (phoneParam && conversations.length > 0) {
-      const conv = conversations.find(c => c.phoneNumber === phoneParam);
-      if (conv) {
-        setSelectedConversation(conv);
-      } else {
-        // Create a new conversation entry if it doesn't exist
-        const newConv: Conversation = {
-          phoneNumber: phoneParam,
-          lastMessageAt: new Date().toISOString(),
-          messageCount: 0,
-          lastMessage: '',
-          messages: []
-        };
-        setSelectedConversation(newConv);
-        loadMessages(phoneParam);
-      }
+    
+    if (!phoneParam) {
+      phoneParamHandledRef.current = null;
+      return;
     }
-  }, [searchParams, conversations]);
 
+    // Skip if we already handled this phone param
+    if (phoneParamHandledRef.current === phoneParam) {
+      return;
+    }
+
+    // Check if conversation exists in loaded conversations
+    const existingConv = conversations.find(c => c.phoneNumber === phoneParam);
+    
+    if (existingConv) {
+      if (selectedConversation?.phoneNumber !== phoneParam) {
+        setSelectedConversation(existingConv);
+        phoneParamHandledRef.current = phoneParam;
+      }
+      return;
+    }
+
+    // If no conversation exists, create it
+    const newConv: Conversation = {
+      phoneNumber: phoneParam,
+      lastMessageAt: new Date().toISOString(),
+      messageCount: 0,
+      lastMessage: '',
+      messages: []
+    };
+    setSelectedConversation(newConv);
+    phoneParamHandledRef.current = phoneParam;
+    
+    // Assign conversation to current user when opening from opportunity
+    chatAPI.assignConversation(phoneParam).then(() => {
+      // Reload conversations to include the newly assigned one
+      loadConversations();
+    }).catch(err => {
+      console.log('Conversation assignment (may already be assigned):', err);
+    });
+    
+    // Try to load messages
+    loadMessages(phoneParam).catch(err => {
+      console.log('No existing messages for this phone number:', err);
+    });
+  }, [searchParams, loadMessages]); // Only depend on searchParams and loadMessages to avoid loops
+
+  // Load messages when selected conversation changes (only if not from URL param)
   useEffect(() => {
-    if (selectedConversation) {
+    if (selectedConversation && phoneParamHandledRef.current !== selectedConversation.phoneNumber) {
       loadMessages(selectedConversation.phoneNumber);
     }
-  }, [selectedConversation]);
+  }, [selectedConversation?.phoneNumber, loadMessages]);
 
   useEffect(() => {
     scrollToBottom();
@@ -81,8 +130,16 @@ const ChatView: React.FC = () => {
       const data = await chatAPI.getConversations();
       setConversations(data.conversations);
       
-      // Auto-select first conversation if available
-      if (data.conversations.length > 0 && !selectedConversation) {
+      // Check if there's a phone param and select that conversation
+      const phoneParam = searchParams.get('phone');
+      if (phoneParam) {
+        const existingConv = data.conversations.find(c => c.phoneNumber === phoneParam);
+        if (existingConv && selectedConversation?.phoneNumber !== phoneParam) {
+          setSelectedConversation(existingConv);
+          phoneParamHandledRef.current = phoneParam;
+        }
+      } else if (data.conversations.length > 0 && !selectedConversation) {
+        // Auto-select first conversation if available and no phone param
         setSelectedConversation(data.conversations[0]);
       }
     } catch (err: any) {
@@ -93,22 +150,6 @@ const ChatView: React.FC = () => {
     }
   };
 
-  const loadMessages = async (phoneNumber: string) => {
-    try {
-      setError(null);
-      const data = await chatAPI.getConversation(phoneNumber);
-      setMessages(data.messages);
-      
-      // Assign conversation to current user if not already assigned
-      if (data.messages.length > 0 && !data.messages[0].userId) {
-        await chatAPI.assignConversation(phoneNumber);
-        loadConversations(); // Reload to update assignment
-      }
-    } catch (err: any) {
-      console.error('Error loading messages:', err);
-      setError('No se pudieron cargar los mensajes.');
-    }
-  };
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedConversation) return;
@@ -294,7 +335,28 @@ const ChatView: React.FC = () => {
                 </Alert>
               )}
 
-              {messages.map((msg, index) => {
+              {messages.length === 0 ? (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minHeight: '200px',
+                    textAlign: 'center',
+                    color: 'text.secondary'
+                  }}
+                >
+                  <PhoneIcon sx={{ fontSize: 48, mb: 2, opacity: 0.5 }} />
+                  <Typography variant="h6" gutterBottom>
+                    No hay mensajes aún
+                  </Typography>
+                  <Typography variant="body2">
+                    Escribe un mensaje para iniciar la conversación
+                  </Typography>
+                </Box>
+              ) : (
+                messages.map((msg, index) => {
                 const isSent = msg.sentByUserId === user?.id;
                 const showDate = index === 0 || 
                   new Date(msg.datetime).toDateString() !== 
@@ -343,7 +405,7 @@ const ChatView: React.FC = () => {
                     </Box>
                   </React.Fragment>
                 );
-              })}
+              }))}
               <div ref={messagesEndRef} />
             </Box>
 

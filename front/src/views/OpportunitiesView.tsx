@@ -220,11 +220,11 @@ const OpportunitiesView: React.FC = () => {
     });
   };
 
-  const openWhatsApp = (phoneNumber: string) => {
+  const openChat = (phoneNumber: string) => {
     // Clean phone number (remove spaces, dashes, parentheses, plus signs)
     const cleanPhone = phoneNumber.replace(/[\s\-\(\)\+]/g, '');
-    // Open WhatsApp Web in a new tab
-    window.open(`https://web.whatsapp.com/send?phone=${cleanPhone}`, '_blank');
+    // Navigate to chat view with the phone number
+    navigate(`/chat?phone=${encodeURIComponent(cleanPhone)}`);
   };
 
   const OpportunityCard: React.FC<{ opportunity: OpportunityDto; index: number }> = ({ 
@@ -313,7 +313,7 @@ const OpportunitiesView: React.FC = () => {
                     onClick={(e) => {
                       e.stopPropagation();
                       const phoneNumber = opportunity.phone || opportunity.mobile;
-                      if (phoneNumber) openWhatsApp(phoneNumber);
+                      if (phoneNumber) openChat(phoneNumber);
                     }}
                     sx={{
                       cursor: 'pointer',

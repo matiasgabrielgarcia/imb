@@ -1,0 +1,23 @@
+# Database
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=rental_management
+DB_USER=postgres
+DB_PASSWORD=imb2025
+
+# JWT
+JWT_SECRET=imb_jwt_secret_key_2025_minimum_32_characters_long
+JWT_EXPIRES_IN=24h
+
+# Server
+PORT=3005
+NODE_ENV=development
+
+# Email (for email 2FA fallback)
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=your_email@gmail.com
+EMAIL_PASS=your_app_password
+
+# App
+APP_NAME=2FA Authentication App
