@@ -11,7 +11,7 @@ const app = express();
 
 // Configuration (you can use environment variables in production)
 const PORT = process.env.PORT || 3005;
-const VERIFY_TOKEN = process.env.VERIFY_TOKEN || 'my_secure_verify_token_123';
+const VERIFY_TOKEN = process.env.WEBHOOK_VERIFY_TOKEN || process.env.VERIFY_TOKEN || 'my_secure_verify_token_123';
 const MESSAGES_DIR = process.env.MESSAGES_DIR || './messages';
 
 // Middleware
@@ -40,8 +40,33 @@ app.get('/', (req, res) => {
     message: 'WhatsApp Business Webhook Server',
     endpoints: {
       verification: 'GET /webhook',
-      messages: 'POST /webhook'
+      messages: 'POST /webhook',
+      diagnostics: 'GET /diagnostics'
     }
+  });
+});
+
+// Diagnostics endpoint to check configuration
+app.get('/diagnostics', (req, res) => {
+  const hasVerifyToken = !!VERIFY_TOKEN;
+  const tokenLength = VERIFY_TOKEN ? VERIFY_TOKEN.length : 0;
+  const tokenPreview = VERIFY_TOKEN ? `${VERIFY_TOKEN.substring(0, 10)}...${VERIFY_TOKEN.substring(VERIFY_TOKEN.length - 10)}` : 'NOT SET';
+  
+  res.json({
+    status: 'ok',
+    configuration: {
+      port: PORT,
+      verifyTokenSet: hasVerifyToken,
+      verifyTokenLength: tokenLength,
+      verifyTokenPreview: tokenPreview,
+      environment: process.env.NODE_ENV || 'development'
+    },
+    environmentVariables: {
+      WEBHOOK_VERIFY_TOKEN: process.env.WEBHOOK_VERIFY_TOKEN ? 'SET' : 'NOT SET',
+      VERIFY_TOKEN: process.env.VERIFY_TOKEN ? 'SET' : 'NOT SET',
+      PORT: process.env.PORT || 'NOT SET (using default: 3005)'
+    },
+    testUrl: `${req.protocol}://${req.get('host')}/webhook?hub.mode=subscribe&hub.verify_token=${VERIFY_TOKEN}&hub.challenge=test123`
   });
 });
 
@@ -52,15 +77,28 @@ app.get('/webhook', (req, res) => {
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
+  console.log('================================================');
   console.log('Webhook verification request received');
   console.log('Mode:', mode);
-  console.log('Token:', token);
+  console.log('Received Token:', token);
+  console.log('Expected Token:', VERIFY_TOKEN);
+  console.log('Token Match:', token === VERIFY_TOKEN);
+  console.log('Mode Match:', mode === 'subscribe');
+  console.log('Challenge:', challenge);
+  console.log('================================================');
 
   if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-    console.log('Webhook verified successfully');
+    console.log('✅ Webhook verified successfully');
     res.status(200).send(challenge);
   } else {
-    console.log('Webhook verification failed');
+    console.log('❌ Webhook verification failed');
+    console.log('Reason:', {
+      modeMatch: mode === 'subscribe',
+      tokenMatch: token === VERIFY_TOKEN,
+      modeReceived: mode,
+      tokenReceived: token ? `${token.substring(0, 10)}...` : 'undefined',
+      tokenExpected: VERIFY_TOKEN ? `${VERIFY_TOKEN.substring(0, 10)}...` : 'undefined'
+    });
     res.status(403).send('Forbidden');
   }
 });
@@ -1183,7 +1221,11 @@ app.listen(PORT, () => {
   console.log(`Webhook URL: http://localhost:${PORT}/webhook`);
   console.log(`Test endpoint: http://localhost:${PORT}/webhook/test`);
   console.log(`Messages directory: ${path.resolve(MESSAGES_DIR)}`);
-  console.log(`Verify token: ${VERIFY_TOKEN}`);
+  console.log(`Verify token: ${VERIFY_TOKEN ? `${VERIFY_TOKEN.substring(0, 10)}...${VERIFY_TOKEN.substring(VERIFY_TOKEN.length - 10)}` : 'NOT SET'}`);
+  console.log(`Verify token length: ${VERIFY_TOKEN ? VERIFY_TOKEN.length : 0}`);
+  console.log(`Environment variables:`);
+  console.log(`  WEBHOOK_VERIFY_TOKEN: ${process.env.WEBHOOK_VERIFY_TOKEN ? 'SET' : 'NOT SET'}`);
+  console.log(`  VERIFY_TOKEN: ${process.env.VERIFY_TOKEN ? 'SET' : 'NOT SET'}`);
   console.log('================================================');
 });
 
